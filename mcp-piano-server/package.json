@@ -1,0 +1,53 @@
+{
+  "name": "mcp-piano-server",
+  "version": "1.0.0",
+  "description": "A Model Context Protocol server for piano and music theory operations",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:connection": "tsx src/test-connection.ts",
+    "lint": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "piano",
+    "music",
+    "theory",
+    "chords",
+    "scales",
+    "progressions"
+  ],
+  "author": "aisloppyjoel@gmail.com",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "package.json"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.18.1",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.3.3"
+  }
+}
