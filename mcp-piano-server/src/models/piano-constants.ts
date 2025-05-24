@@ -199,8 +199,8 @@ export function getNoteNamesForIndex(chromaticIndex: number): string[] {
     throw new Error(`Invalid chromatic index: ${chromaticIndex}`);
   }
 
-  const sharpName = SHARP_NOTE_NAMES[chromaticIndex];
-  const flatName = FLAT_NOTE_NAMES[chromaticIndex];
+  const sharpName = SHARP_NOTE_NAMES[chromaticIndex]!;
+  const flatName = FLAT_NOTE_NAMES[chromaticIndex]!;
 
   if (sharpName === flatName) {
     // Natural note
