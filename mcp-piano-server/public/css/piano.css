@@ -162,11 +162,16 @@ body {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
   outline: none;
+  /* Cross-browser appearance support */
+  -webkit-appearance: none;
+  -moz-appearance: none;
   appearance: none;
   cursor: pointer;
 }
 
 .volume-slider::-webkit-slider-thumb {
+  /* Cross-browser appearance support */
+  -webkit-appearance: none;
   appearance: none;
   width: 18px;
   height: 18px;
@@ -240,7 +245,7 @@ body {
   font-size: 1.2rem;
 }
 
-/* ===== PIANO KEYBOARD CONTAINER ===== */
+/* ===== PIANO KEYBOARD CONTAINER WITH RESPONSIVE SCALING ===== */
 .piano-keyboard-container {
   flex: 1;
   min-height: 300px;
@@ -252,16 +257,54 @@ body {
   justify-content: center;
   align-items: center;
   position: relative;
-  overflow: hidden;
+  overflow-x: auto; /* Enable horizontal scrolling */
+  overflow-y: hidden;
+  /* Cross-browser scroll behavior support */
+  -webkit-scroll-behavior: smooth; /* Safari support */
+  -moz-scroll-behavior: smooth; /* Firefox support */
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styling for better UX */
+.piano-keyboard-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.piano-keyboard-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.piano-keyboard-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #00d4ff, #ff6b6b);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.piano-keyboard-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #00c4ef, #ff5b5b);
+}
+
+/* Piano canvas wrapper for responsive scaling */
+.piano-canvas-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: -webkit-fill-available; /* Samsung Internet support */
+  /* Minimum width based on 88 keys at minimum size */
+  min-width: calc(52 * 20px); /* 52 white keys at 20px minimum */
 }
 
 .piano-canvas,
 .piano-svg {
-  max-width: 100%;
+  max-width: none; /* Remove max-width restriction for horizontal scroll */
   max-height: 100%;
   border-radius: 8px;
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  /* Ensure minimum interactive size for touch devices */
+  min-height: 120px;
 }
 
 .piano-canvas:focus,
@@ -474,6 +517,9 @@ body {
   border: 4px solid rgba(255, 255, 255, 0.1);
   border-left-color: #00d4ff;
   border-radius: 50%;
+  /* Cross-browser animation support */
+  -webkit-animation: spin 1s linear infinite;
+  -moz-animation: spin 1s linear infinite;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
 }
@@ -484,13 +530,28 @@ body {
   font-weight: 500;
 }
 
+/* Cross-browser keyframes support for loading spinner */
+@-webkit-keyframes spin {
+  to {
+    -webkit-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+
+@-moz-keyframes spin {
+  to {
+    -moz-transform: rotate(360deg);
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* ===== RESPONSIVE DESIGN ===== */
+/* ===== RESPONSIVE DESIGN WITH ENHANCED SCALING ===== */
 @media (max-width: 1200px) {
   .piano-container {
     padding: 1.5rem;
@@ -498,6 +559,11 @@ body {
 
   .controls-panel {
     gap: 2rem;
+  }
+
+  /* Reduce container padding for more piano space */
+  .piano-keyboard-container {
+    padding: 1.5rem;
   }
 }
 
@@ -534,7 +600,15 @@ body {
 
   .piano-keyboard-container {
     padding: 1rem;
-    min-height: 250px;
+    min-height: 200px; /* Reduced for mobile but still touch-friendly */
+    /* Enhanced touch scrolling on mobile */
+    scroll-snap-type: x proximity;
+  }
+
+  /* Ensure canvas has minimum touch-friendly size */
+  .piano-canvas,
+  .piano-svg {
+    min-height: 140px; /* Touch-friendly height for mobile */
   }
 
   .key-mapping-grid {
@@ -574,7 +648,19 @@ body {
 
   .piano-keyboard-container {
     padding: 0.5rem;
-    min-height: 200px;
+    min-height: 160px; /* Increased minimum height for better touch interaction */
+    /* Add padding to sides for better scroll indication */
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Touch-friendly canvas sizing for very small screens */
+  .piano-canvas,
+  .piano-svg {
+    min-height: 120px;
+    /* Ensure touch targets are large enough - Cross-browser support */
+    -ms-touch-action: manipulation; /* IE support */
+    touch-action: manipulation;
   }
 
   .key-mapping-display {
@@ -583,6 +669,65 @@ body {
 
   .key-mapping-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ===== TOUCH DEVICE OPTIMIZATIONS ===== */
+@media (hover: none) and (pointer: coarse) {
+  /* Touch device specific styles */
+  .piano-keyboard-container {
+    /* Larger padding for easier touch interaction */
+    padding: 1.5rem;
+  }
+
+  /* Apply overscroll behavior only when supported */
+  @supports (overscroll-behavior-x: contain) {
+    .piano-keyboard-container {
+      overscroll-behavior-x: contain;
+    }
+  }
+
+  /* Fallback for older Safari versions that don't support overscroll-behavior */
+  @supports not (overscroll-behavior-x: contain) {
+    .piano-keyboard-container {
+      /* Alternative approach for older browsers */
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  .piano-canvas,
+  .piano-svg {
+    /* Larger minimum size for touch devices */
+    min-height: 160px;
+    /* Prevent zoom on double tap - Cross-browser support */
+    -ms-touch-action: manipulation; /* IE support */
+    touch-action: manipulation;
+  }
+
+  /* Ensure scroll indicators are visible on touch devices */
+  .piano-keyboard-container::-webkit-scrollbar {
+    height: 12px; /* Larger scrollbar for touch */
+  }
+
+  .piano-keyboard-container::-webkit-scrollbar-thumb {
+    min-width: 40px; /* Minimum thumb size for touch */
+  }
+}
+
+/* ===== LANDSCAPE ORIENTATION OPTIMIZATIONS ===== */
+@media (orientation: landscape) and (max-height: 600px) {
+  .piano-keyboard-container {
+    /* Optimize for landscape on mobile devices */
+    min-height: calc(100vh - 200px);
+    max-height: calc(100vh - 200px);
+  }
+
+  .controls-panel {
+    /* Compact controls in landscape */
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 0.75rem;
   }
 }
 
@@ -642,5 +787,70 @@ body {
     background: #ffffff;
     border: 1px solid #000000;
     color: #000000;
+  }
+}
+
+/* Horizontal scroll mode indicator */
+.piano-keyboard-container.horizontal-scroll-mode::before {
+  content: "← Scroll horizontally to see more keys →";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  /* Cross-browser transform support */
+  -webkit-transform: translateX(-50%);
+  -moz-transform: translateX(-50%);
+  -ms-transform: translateX(-50%);
+  transform: translateX(-50%);
+  background: rgba(0, 212, 255, 0.9);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0 0 8px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  z-index: 10;
+  pointer-events: none;
+  /* Cross-browser animation support */
+  -webkit-animation: fadeInOut 3s ease-in-out;
+  -moz-animation: fadeInOut 3s ease-in-out;
+  animation: fadeInOut 3s ease-in-out;
+}
+
+/* Cross-browser keyframes support */
+@-webkit-keyframes fadeInOut {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@-moz-keyframes fadeInOut {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInOut {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Hide scroll indicator on very small screens to save space */
+@media (max-width: 400px) {
+  .piano-keyboard-container.horizontal-scroll-mode::before {
+    content: "← Scroll →";
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
   }
 }

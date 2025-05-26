@@ -5,17 +5,23 @@
 
 class PianoInterface {
   constructor() {
-    // Piano configuration
+    // Piano configuration with responsive scaling parameters
     this.config = {
       // 88 keys total: A0 to C8
       totalKeys: 88,
       firstKeyMidiNote: 21, // A0
       lastKeyMidiNote: 108, // C8
-      whiteKeyWidth: 24,
+      // Responsive scaling parameters
+      minWhiteKeyWidth: 20, // Minimum white key width in pixels
+      maxWhiteKeyWidth: 50, // Maximum white key width in pixels
+      defaultWhiteKeyWidth: 24, // Default white key width
       whiteKeyHeight: 140,
-      blackKeyWidth: 14,
-      blackKeyHeight: 90,
+      blackKeyWidthRatio: 0.58, // Black key width as ratio of white key width
+      blackKeyHeightRatio: 0.64, // Black key height as ratio of white key height
       keyPadding: 1,
+      // Touch device scaling factors
+      touchMinHeight: 120,
+      touchOptimalHeight: 160,
     };
 
     // Piano state
@@ -26,6 +32,9 @@ class PianoInterface {
       sustainPedal: false,
       connectionStatus: "connecting", // 'connecting', 'connected', 'disconnected'
       mcpConnection: null,
+      // Responsive state
+      currentKeyWidth: this.config.defaultWhiteKeyWidth,
+      isHorizontalScrollMode: false,
     };
 
     // UI elements
@@ -59,6 +68,7 @@ class PianoInterface {
     this.setupEventListeners();
     this.generateKeyLayout();
     this.renderPiano();
+    this.updateScrollIndicators();
     this.setupMCPConnection();
     this.hideLoadingIndicator();
   }
@@ -113,34 +123,134 @@ class PianoInterface {
   }
 
   /**
-   * Resize canvas to fit container
+   * Resize canvas to fit container with responsive scaling
    */
   resizeCanvas() {
-    const container = this.canvas.parentElement;
+    const container = this.canvas.parentElement.parentElement; // Get piano-keyboard-container
     const containerRect = container.getBoundingClientRect();
 
-    // Calculate optimal canvas size
-    const availableWidth = containerRect.width - 32; // Account for padding
+    // Calculate available space
+    const availableWidth = containerRect.width - 32; // Account for container padding
     const availableHeight = containerRect.height - 32;
 
-    // Calculate piano dimensions
+    // Detect if device supports touch
+    const isTouchDevice =
+      "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+    // Calculate optimal key dimensions
     const whiteKeysCount = this.getWhiteKeysCount();
+    this.calculateOptimalKeySize(
+      availableWidth,
+      availableHeight,
+      isTouchDevice
+    );
+
+    // Calculate piano dimensions with current key size
     const pianoWidth =
-      whiteKeysCount * (this.config.whiteKeyWidth + this.config.keyPadding);
-    const pianoHeight = this.config.whiteKeyHeight;
+      whiteKeysCount * (this.state.currentKeyWidth + this.config.keyPadding);
+    const pianoHeight = this.getOptimalPianoHeight(
+      availableHeight,
+      isTouchDevice
+    );
 
-    // Scale to fit container while maintaining aspect ratio
-    const scaleX = availableWidth / pianoWidth;
-    const scaleY = availableHeight / pianoHeight;
-    const scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+    // Determine if we need horizontal scrolling
+    this.state.isHorizontalScrollMode = pianoWidth > availableWidth;
 
-    this.canvas.width = pianoWidth * scale;
-    this.canvas.height = pianoHeight * scale;
-    this.canvas.style.width = this.canvas.width + "px";
-    this.canvas.style.height = this.canvas.height + "px";
+    // Set canvas dimensions
+    if (this.state.isHorizontalScrollMode) {
+      // Use full piano width, enable horizontal scrolling
+      this.canvas.width = pianoWidth;
+      this.canvas.height = pianoHeight;
+      this.canvas.style.width = pianoWidth + "px";
+      this.canvas.style.height = pianoHeight + "px";
 
-    // Store scale for coordinate calculations
-    this.scale = scale;
+      // Ensure container allows horizontal scroll
+      container.style.justifyContent = "flex-start";
+    } else {
+      // Fit within container
+      this.canvas.width = pianoWidth;
+      this.canvas.height = pianoHeight;
+      this.canvas.style.width = pianoWidth + "px";
+      this.canvas.style.height = pianoHeight + "px";
+
+      // Center in container
+      container.style.justifyContent = "center";
+    }
+
+    // Store scale for coordinate calculations (always 1 for direct pixel mapping)
+    this.scale = 1;
+
+    // Update configuration for key calculations
+    this.config.whiteKeyWidth = this.state.currentKeyWidth;
+    this.config.blackKeyWidth = Math.round(
+      this.state.currentKeyWidth * this.config.blackKeyWidthRatio
+    );
+    this.config.whiteKeyHeight = pianoHeight;
+    this.config.blackKeyHeight = Math.round(
+      pianoHeight * this.config.blackKeyHeightRatio
+    );
+
+    // Set up high DPI support
+    this.setupHighDPI();
+  }
+
+  /**
+   * Calculate optimal key size based on available space and constraints
+   */
+  calculateOptimalKeySize(availableWidth, availableHeight, isTouchDevice) {
+    const whiteKeysCount = this.getWhiteKeysCount();
+
+    // Calculate ideal white key width to fit container
+    const idealKeyWidth =
+      (availableWidth - whiteKeysCount * this.config.keyPadding) /
+      whiteKeysCount;
+
+    // Apply min/max constraints
+    let optimalKeyWidth = Math.max(
+      this.config.minWhiteKeyWidth,
+      Math.min(idealKeyWidth, this.config.maxWhiteKeyWidth)
+    );
+
+    // For touch devices, ensure minimum interactive size
+    if (isTouchDevice) {
+      optimalKeyWidth = Math.max(optimalKeyWidth, 22); // Slightly larger minimum for touch
+    }
+
+    // Store the current key width
+    this.state.currentKeyWidth = optimalKeyWidth;
+
+    console.log(
+      `Responsive scaling: Key width set to ${optimalKeyWidth}px (ideal: ${idealKeyWidth.toFixed(
+        1
+      )}px)`
+    );
+  }
+
+  /**
+   * Get optimal piano height based on available space and device type
+   */
+  getOptimalPianoHeight(availableHeight, isTouchDevice) {
+    let targetHeight = this.config.whiteKeyHeight;
+
+    if (isTouchDevice) {
+      // Ensure minimum touch-friendly height
+      targetHeight = Math.max(targetHeight, this.config.touchMinHeight);
+
+      // Optimize for available space on touch devices
+      if (availableHeight > 0) {
+        targetHeight = Math.min(
+          Math.max(availableHeight * 0.8, this.config.touchMinHeight),
+          this.config.touchOptimalHeight
+        );
+      }
+    } else {
+      // For desktop, scale height based on available space
+      if (availableHeight > 0 && availableHeight < targetHeight) {
+        targetHeight = Math.max(availableHeight * 0.9, 100); // Minimum 100px height
+      }
+    }
+
+    return Math.round(targetHeight);
   }
 
   /**
@@ -213,10 +323,10 @@ class PianoInterface {
       return {
         x:
           whiteKeyIndex *
-          (this.config.whiteKeyWidth + this.config.keyPadding) *
+          (this.state.currentKeyWidth + this.config.keyPadding) *
           scale,
         y: 0,
-        width: this.config.whiteKeyWidth * scale,
+        width: this.state.currentKeyWidth * scale,
         height: this.config.whiteKeyHeight * scale,
       };
     } else {
@@ -232,17 +342,25 @@ class PianoInterface {
       const baseOffset = blackKeyOffsets[noteInfo.name] || 0.7;
       const whiteKeyStart =
         (whiteKeyIndex - 1) *
-        (this.config.whiteKeyWidth + this.config.keyPadding);
+        (this.state.currentKeyWidth + this.config.keyPadding);
+
+      // Calculate black key width dynamically
+      const blackKeyWidth = Math.round(
+        this.state.currentKeyWidth * this.config.blackKeyWidthRatio
+      );
 
       return {
         x:
           (whiteKeyStart +
-            this.config.whiteKeyWidth * baseOffset -
-            this.config.blackKeyWidth / 2) *
+            this.state.currentKeyWidth * baseOffset -
+            blackKeyWidth / 2) *
           scale,
         y: 0,
-        width: this.config.blackKeyWidth * scale,
-        height: this.config.blackKeyHeight * scale,
+        width: blackKeyWidth * scale,
+        height:
+          Math.round(
+            this.config.whiteKeyHeight * this.config.blackKeyHeightRatio
+          ) * scale,
       };
     }
   }
@@ -460,36 +578,94 @@ class PianoInterface {
   }
 
   /**
-   * Handle touch start events
+   * Handle touch start events with enhanced mobile support
    */
   handleTouchStart(e) {
     e.preventDefault();
+
+    // Store active touch points
+    if (!this.touchPoints) {
+      this.touchPoints = new Map();
+    }
+
     for (let touch of e.touches) {
       const rect = this.canvas.getBoundingClientRect();
-      const x = touch.clientX - rect.left;
-      const y = touch.clientY - rect.top;
+      const x = (touch.clientX - rect.left) / this.scale;
+      const y = (touch.clientY - rect.top) / this.scale;
       const key = this.getKeyAtPosition(x, y);
+
       if (key) {
+        this.touchPoints.set(touch.identifier, key.id);
         this.playKey(key.id);
       }
     }
   }
 
   /**
-   * Handle touch move events
+   * Handle touch move events with drag support
    */
   handleTouchMove(e) {
     e.preventDefault();
-    // Similar to touch start for drag playing
+
+    if (!this.touchPoints) return;
+
+    // Handle drag playing across keys
+    for (let touch of e.touches) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = (touch.clientX - rect.left) / this.scale;
+      const y = (touch.clientY - rect.top) / this.scale;
+      const key = this.getKeyAtPosition(x, y);
+
+      const currentKeyId = this.touchPoints.get(touch.identifier);
+
+      if (key && key.id !== currentKeyId) {
+        // Stop the previous key if not sustaining
+        if (currentKeyId !== undefined && !this.state.sustainPedal) {
+          this.stopKey(currentKeyId);
+        }
+
+        // Play the new key
+        this.touchPoints.set(touch.identifier, key.id);
+        this.playKey(key.id);
+      } else if (!key && currentKeyId !== undefined) {
+        // Touch moved outside any key
+        if (!this.state.sustainPedal) {
+          this.stopKey(currentKeyId);
+        }
+        this.touchPoints.delete(touch.identifier);
+      }
+    }
   }
 
   /**
-   * Handle touch end events
+   * Handle touch end events with proper cleanup
    */
   handleTouchEnd(e) {
     e.preventDefault();
-    if (e.touches.length === 0 && !this.state.sustainPedal) {
-      this.stopAllKeys();
+
+    if (!this.touchPoints) return;
+
+    // Handle ended touches
+    const activeTouchIds = Array.from(e.touches).map(
+      (touch) => touch.identifier
+    );
+
+    for (let [touchId, keyId] of this.touchPoints.entries()) {
+      if (!activeTouchIds.includes(touchId)) {
+        // This touch ended
+        if (!this.state.sustainPedal) {
+          this.stopKey(keyId);
+        }
+        this.touchPoints.delete(touchId);
+      }
+    }
+
+    // Clean up if no active touches
+    if (e.touches.length === 0) {
+      this.touchPoints.clear();
+      if (!this.state.sustainPedal) {
+        this.stopAllKeys();
+      }
     }
   }
 
@@ -636,14 +812,67 @@ class PianoInterface {
   }
 
   /**
-   * Handle window resize
+   * Handle window resize with enhanced responsive behavior
    */
   handleResize() {
     if (this.canvas && this.ctx) {
-      this.resizeCanvas();
-      this.generateKeyLayout();
-      this.renderPiano();
+      // Debounce resize handling for better performance
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => {
+        this.resizeCanvas();
+        this.generateKeyLayout();
+        this.renderPiano();
+        this.updateScrollIndicators();
+      }, 150);
     }
+  }
+
+  /**
+   * Update scroll indicators and center piano if needed
+   */
+  updateScrollIndicators() {
+    const container = this.canvas.parentElement.parentElement;
+
+    if (this.state.isHorizontalScrollMode) {
+      // Add scroll indicator class for styling
+      container.classList.add("horizontal-scroll-mode");
+
+      // Center the piano initially on small screens
+      const containerWidth = container.clientWidth;
+      const canvasWidth = this.canvas.width;
+      const scrollLeft = Math.max(0, (canvasWidth - containerWidth) / 2);
+      container.scrollLeft = scrollLeft;
+    } else {
+      container.classList.remove("horizontal-scroll-mode");
+      container.scrollLeft = 0;
+    }
+  }
+
+  /**
+   * Scroll to a specific piano key (useful for mobile navigation)
+   */
+  scrollToKey(keyId) {
+    if (!this.state.isHorizontalScrollMode) return;
+
+    const key = this.keys[keyId];
+    if (!key) return;
+
+    const container = this.canvas.parentElement.parentElement;
+    const containerWidth = container.clientWidth;
+    const keyX = key.bounds.x;
+    const keyWidth = key.bounds.width;
+
+    // Calculate optimal scroll position to center the key
+    const scrollLeft = keyX + keyWidth / 2 - containerWidth / 2;
+
+    // Smooth scroll to the position
+    container.scrollTo({
+      left: Math.max(
+        0,
+        Math.min(scrollLeft, this.canvas.width - containerWidth)
+      ),
+      behavior: "smooth",
+    });
   }
 
   /**
