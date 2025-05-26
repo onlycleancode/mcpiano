@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:web": "node dist/main.js",
     "dev": "tsx watch src/server.ts",
+    "dev:web": "tsx watch src/main.ts",
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
@@ -40,6 +42,9 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "ws": "^8.18.2"

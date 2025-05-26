@@ -147,7 +147,9 @@ export function scientificNotationToMidi(noteName: string): number | null {
   if (!match) return null;
 
   const [, note, octaveStr] = match;
-  const octave = parseInt(octaveStr);
+  if (!note || !octaveStr) return null;
+
+  const octave = parseInt(octaveStr, 10);
 
   // Convert note name to chromatic index
   let chromaticIndex = CHROMATIC_NOTES.indexOf(note as any);

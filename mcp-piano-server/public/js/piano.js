@@ -962,4 +962,5 @@ class PianoInterface {
 }
 
 // Initialize the piano interface when the script loads
-new PianoInterface();
+// Note: Initialization is now handled by piano-init.js
+// new PianoInterface();
