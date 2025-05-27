@@ -1,0 +1,26 @@
+{
+  "name": "mcpiano",
+  "version": "1.0.0",
+  "description": "MCP Piano - 88-Key Piano Interface with Model Context Protocol",
+  "main": "mcp-piano-server/dist/server.js",
+  "scripts": {
+    "start": "cd mcp-piano-server && npm start",
+    "dev": "cd mcp-piano-server && npm run dev",
+    "build": "cd mcp-piano-server && npm run build",
+    "test": "cd mcp-piano-server && npm test",
+    "install-deps": "cd mcp-piano-server && npm install"
+  },
+  "keywords": [
+    "piano",
+    "music",
+    "mcp",
+    "model-context-protocol",
+    "88-key",
+    "interface"
+  ],
+  "author": "aisloppyjoel@gmail.com",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
