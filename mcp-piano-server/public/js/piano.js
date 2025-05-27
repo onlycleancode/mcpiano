@@ -35,12 +35,18 @@ class PianoInterface {
       // Responsive state
       currentKeyWidth: this.config.defaultWhiteKeyWidth,
       isHorizontalScrollMode: false,
+      // Audio engine state
+      audioEngineReady: false,
+      audioContextStarted: false,
     };
 
     // UI elements
     this.canvas = null;
     this.ctx = null;
     this.keys = [];
+
+    // Audio engine
+    this.audioEngine = null;
 
     // Initialize the interface
     this.init();
@@ -66,6 +72,7 @@ class PianoInterface {
   setupInterface() {
     this.setupCanvas();
     this.setupEventListeners();
+    this.setupAudioEngine();
     this.generateKeyLayout();
     this.renderPiano();
     this.updateScrollIndicators();
@@ -251,6 +258,106 @@ class PianoInterface {
     }
 
     return Math.round(targetHeight);
+  }
+
+  /**
+   * Set up the audio engine for realistic piano sounds
+   */
+  async setupAudioEngine() {
+    try {
+      console.log("🎵 Setting up Piano Audio Engine...");
+
+      // Check if PianoAudioEngine is available
+      if (typeof PianoAudioEngine === "undefined") {
+        console.warn("⚠️ PianoAudioEngine not found. Audio will be disabled.");
+        return;
+      }
+
+      // Create audio engine instance
+      this.audioEngine = new PianoAudioEngine();
+
+      // Initialize the audio engine
+      const initialized = await this.audioEngine.initialize();
+      if (initialized) {
+        this.state.audioEngineReady = true;
+        console.log("✅ Audio engine initialized successfully");
+
+        // Set initial volume
+        this.audioEngine.setVolume(this.state.volume / 100);
+
+        // Listen for audio errors
+        window.addEventListener("pianoAudioError", (event) => {
+          console.error("🚨 Piano audio error:", event.detail.error);
+          this.handleAudioEngineError(event.detail.error);
+        });
+
+        // Listen for sampler events
+        window.addEventListener("pianoSamplerReady", (event) => {
+          console.log("🎹 Piano sampler loaded successfully!");
+          this.updateConnectionStatus("connected", "Piano Sampler Ready");
+        });
+
+        window.addEventListener("pianoSamplerError", (event) => {
+          console.warn(
+            "⚠️ Piano sampler failed to load, using synthesizer fallback"
+          );
+          this.updateConnectionStatus("connected", "Synthesizer Active");
+        });
+
+        // Add click handler to start audio context (required by browser policies)
+        this.setupAudioContextActivation();
+      } else {
+        console.warn("⚠️ Failed to initialize audio engine");
+      }
+    } catch (error) {
+      console.error("❌ Error setting up audio engine:", error);
+    }
+  }
+
+  /**
+   * Set up audio context activation on first user interaction
+   */
+  setupAudioContextActivation() {
+    const activateAudio = async () => {
+      if (!this.state.audioContextStarted && this.audioEngine) {
+        const started = await this.audioEngine.startAudioContext();
+        if (started) {
+          this.state.audioContextStarted = true;
+          console.log("🎵 Audio context activated");
+
+          // Update connection status to show audio is ready
+          this.updateConnectionStatus("connected");
+
+          // Remove the activation listeners
+          document.removeEventListener("click", activateAudio);
+          document.removeEventListener("keydown", activateAudio);
+          document.removeEventListener("touchstart", activateAudio);
+        }
+      }
+    };
+
+    // Add listeners for first user interaction
+    document.addEventListener("click", activateAudio, { once: true });
+    document.addEventListener("keydown", activateAudio, { once: true });
+    document.addEventListener("touchstart", activateAudio, { once: true });
+  }
+
+  /**
+   * Handle audio engine errors
+   */
+  handleAudioEngineError(error) {
+    console.error("🚨 Audio engine error:", error);
+    this.state.audioEngineReady = false;
+
+    // Show user-friendly error message
+    const statusIndicator = document.getElementById("connectionStatus");
+    if (statusIndicator) {
+      const statusText = statusIndicator.querySelector(".status-text");
+      if (statusText) {
+        statusText.textContent = "Audio Error";
+        statusIndicator.className = "status-indicator disconnected";
+      }
+    }
   }
 
   /**
@@ -488,6 +595,11 @@ class PianoInterface {
       volumeControl.addEventListener("input", (e) => {
         this.state.volume = parseInt(e.target.value);
         volumeValue.textContent = `${this.state.volume}%`;
+
+        // Update audio engine volume
+        if (this.audioEngine && this.state.audioEngineReady) {
+          this.audioEngine.setVolume(this.state.volume / 100);
+        }
       });
     }
 
@@ -505,6 +617,15 @@ class PianoInterface {
       sustainButton.addEventListener("click", () => {
         this.state.sustainPedal = !this.state.sustainPedal;
         sustainButton.classList.toggle("active", this.state.sustainPedal);
+
+        // Update audio engine sustain pedal
+        if (this.audioEngine && this.state.audioEngineReady) {
+          this.audioEngine.setSustainPedal(this.state.sustainPedal);
+        }
+
+        console.log(
+          `🎵 Sustain pedal: ${this.state.sustainPedal ? "ON" : "OFF"}`
+        );
       });
     }
 
@@ -775,6 +896,18 @@ class PianoInterface {
     this.state.activeKeys.add(keyId);
     const key = this.keys[keyId];
 
+    // Calculate velocity based on volume setting (0.0 to 1.0)
+    const velocity = this.state.volume / 100;
+
+    // Play note with audio engine
+    if (
+      this.audioEngine &&
+      this.state.audioEngineReady &&
+      this.state.audioContextStarted
+    ) {
+      this.audioEngine.playNote(key.midiNote, velocity);
+    }
+
     // Send note to MCP server
     this.sendNoteOn(key.midiNote, this.state.volume);
 
@@ -782,7 +915,9 @@ class PianoInterface {
     this.renderPiano();
 
     console.log(
-      `Playing key: ${key.noteName}${key.octave} (MIDI: ${key.midiNote})`
+      `Playing key: ${key.noteName}${key.octave} (MIDI: ${
+        key.midiNote
+      }, velocity: ${velocity.toFixed(2)})`
     );
   }
 
@@ -795,6 +930,15 @@ class PianoInterface {
     this.state.activeKeys.delete(keyId);
     const key = this.keys[keyId];
 
+    // Release note with audio engine
+    if (
+      this.audioEngine &&
+      this.state.audioEngineReady &&
+      this.state.audioContextStarted
+    ) {
+      this.audioEngine.releaseNote(key.midiNote);
+    }
+
     // Send note off to MCP server
     this.sendNoteOff(key.midiNote);
 
@@ -806,9 +950,23 @@ class PianoInterface {
    * Stop all active keys
    */
   stopAllKeys() {
-    for (let keyId of this.state.activeKeys) {
-      this.stopKey(keyId);
+    // Stop all notes with audio engine
+    if (
+      this.audioEngine &&
+      this.state.audioEngineReady &&
+      this.state.audioContextStarted
+    ) {
+      this.audioEngine.stopAllNotes();
     }
+
+    for (let keyId of this.state.activeKeys) {
+      const key = this.keys[keyId];
+      // Send note off to MCP server
+      this.sendNoteOff(key.midiNote);
+    }
+
+    this.state.activeKeys.clear();
+    this.renderPiano();
   }
 
   /**
@@ -904,7 +1062,7 @@ class PianoInterface {
   /**
    * Update connection status indicator
    */
-  updateConnectionStatus(status) {
+  updateConnectionStatus(status, message = "") {
     this.state.connectionStatus = status;
     const statusIndicator = document.getElementById("connectionStatus");
     const statusText = statusIndicator?.querySelector(".status-text");
@@ -919,6 +1077,10 @@ class PianoInterface {
       };
 
       statusText.textContent = statusMessages[status] || "Unknown";
+    }
+
+    if (message) {
+      console.log(message);
     }
   }
 
@@ -958,6 +1120,26 @@ class PianoInterface {
         loadingIndicator.classList.add("hidden");
       }, 1000);
     }
+  }
+
+  /**
+   * Cleanup and dispose of resources
+   */
+  dispose() {
+    // Stop all active notes
+    this.stopAllKeys();
+
+    // Dispose of audio engine
+    if (this.audioEngine) {
+      this.audioEngine.dispose();
+      this.audioEngine = null;
+    }
+
+    // Clear state
+    this.state.audioEngineReady = false;
+    this.state.audioContextStarted = false;
+
+    console.log("🗑️ Piano Interface disposed");
   }
 }
 

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio Engine Test - MCP Piano</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .test-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      .test-button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .test-button:hover {
+        background: #0056b3;
+      }
+      .test-button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .status.warning {
+        background: #fff3cd;
+        color: #856404;
+      }
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+      .log {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🎹 MCP Piano Audio Engine Test</h1>
+
+    <div class="test-container">
+      <h2>Audio Engine Status</h2>
+      <div id="audioStatus" class="status info">Initializing...</div>
+      <div id="samplerStatus" class="status info">Sampler: Not loaded</div>
+      <div id="synthStatus" class="status info">Synthesizer: Not loaded</div>
+      <button id="initAudio" class="test-button">
+        Initialize Audio Engine
+      </button>
+      <button id="startAudio" class="test-button" disabled>
+        Start Audio Context
+      </button>
+    </div>
+
+    <div class="test-container">
+      <h2>Audio Source Selection</h2>
+      <button id="useSampler" class="test-button" disabled>
+        Use Piano Sampler
+      </button>
+      <button id="useSynth" class="test-button" disabled>
+        Use Synthesizer
+      </button>
+      <div id="activeSource" class="status info">Active Source: None</div>
+    </div>
+
+    <div class="test-container">
+      <h2>Basic Audio Tests</h2>
+      <button id="testC4" class="test-button" disabled>Play C4</button>
+      <button id="testChord" class="test-button" disabled>
+        Play C Major Chord
+      </button>
+      <button id="testScale" class="test-button" disabled>
+        Play C Major Scale
+      </button>
+      <button id="stopAll" class="test-button" disabled>Stop All Notes</button>
+    </div>
+
+    <div class="test-container">
+      <h2>Velocity & Sustain Tests</h2>
+      <button id="testVelocity" class="test-button" disabled>
+        Test Velocity Levels
+      </button>
+      <button id="toggleSustain" class="test-button" disabled>
+        Toggle Sustain Pedal
+      </button>
+      <div>
+        <label for="volumeSlider">Volume: </label>
+        <input
+          type="range"
+          id="volumeSlider"
+          min="0"
+          max="100"
+          value="75"
+          disabled
+        />
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Console Log</h2>
+      <div id="logOutput" class="log"></div>
+      <button id="clearLog" class="test-button">Clear Log</button>
+    </div>
+
+    <!-- Load required scripts -->
+    <script src="https://unpkg.com/tone@latest"></script>
+    <script src="js/audio-engine.js"></script>
+
+    <script>
+      let audioEngine = null;
+      let sustainActive = false;
+
+      // DOM elements
+      const audioStatus = document.getElementById("audioStatus");
+      const samplerStatus = document.getElementById("samplerStatus");
+      const synthStatus = document.getElementById("synthStatus");
+      const activeSource = document.getElementById("activeSource");
+      const initButton = document.getElementById("initAudio");
+      const startButton = document.getElementById("startAudio");
+      const useSamplerButton = document.getElementById("useSampler");
+      const useSynthButton = document.getElementById("useSynth");
+      const testButtons = document.querySelectorAll(
+        ".test-button:not(#initAudio):not(#startAudio):not(#clearLog):not(#useSampler):not(#useSynth)"
+      );
+      const logOutput = document.getElementById("logOutput");
+      const volumeSlider = document.getElementById("volumeSlider");
+
+      // Logging function
+      function log(message, type = "info") {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement("div");
+        logEntry.textContent = `[${timestamp}] ${message}`;
+        logEntry.style.color =
+          type === "error" ? "red" : type === "success" ? "green" : "black";
+        logOutput.appendChild(logEntry);
+        logOutput.scrollTop = logOutput.scrollHeight;
+        console.log(message);
+      }
+
+      // Update status display
+      function updateStatus(message, type) {
+        audioStatus.textContent = message;
+        audioStatus.className = `status ${type}`;
+      }
+
+      // Update sampler status
+      function updateSamplerStatus(ready, message = null) {
+        const status = ready ? "success" : "warning";
+        const text =
+          message || (ready ? "Sampler: Ready" : "Sampler: Not ready");
+        samplerStatus.textContent = text;
+        samplerStatus.className = `status ${status}`;
+      }
+
+      // Update synthesizer status
+      function updateSynthStatus(ready, message = null) {
+        const status = ready ? "success" : "warning";
+        const text =
+          message || (ready ? "Synthesizer: Ready" : "Synthesizer: Not ready");
+        synthStatus.textContent = text;
+        synthStatus.className = `status ${status}`;
+      }
+
+      // Update active source display
+      function updateActiveSource() {
+        if (audioEngine) {
+          const sourceType = audioEngine.getAudioSourceType();
+          const status = sourceType === "none" ? "error" : "success";
+          activeSource.textContent = `Active Source: ${sourceType}`;
+          activeSource.className = `status ${status}`;
+        }
+      }
+
+      // Initialize audio engine
+      async function initializeAudio() {
+        try {
+          log("Initializing Piano Audio Engine...");
+          updateStatus("Initializing...", "info");
+
+          audioEngine = new PianoAudioEngine();
+          const success = await audioEngine.initialize();
+
+          if (success) {
+            log("Audio engine initialized successfully", "success");
+            updateStatus("Initialized - Click Start Audio Context", "success");
+            startButton.disabled = false;
+            initButton.disabled = true;
+
+            // Update component status
+            const status = audioEngine.getStatus();
+            updateSamplerStatus(status.samplerReady);
+            updateSynthStatus(status.synthReady);
+            updateActiveSource();
+          } else {
+            throw new Error("Failed to initialize audio engine");
+          }
+        } catch (error) {
+          log(`Error initializing audio: ${error.message}`, "error");
+          updateStatus("Initialization Failed", "error");
+        }
+      }
+
+      // Start audio context
+      async function startAudioContext() {
+        try {
+          log("Starting audio context...");
+          updateStatus("Starting Audio Context...", "info");
+
+          const success = await audioEngine.startAudioContext();
+
+          if (success) {
+            log("Audio context started successfully", "success");
+            updateStatus("Audio Ready!", "success");
+            startButton.disabled = true;
+            testButtons.forEach((btn) => (btn.disabled = false));
+            volumeSlider.disabled = false;
+
+            // Enable source switching buttons
+            const status = audioEngine.getStatus();
+            useSamplerButton.disabled = !status.samplerReady;
+            useSynthButton.disabled = !status.synthReady;
+            updateActiveSource();
+          } else {
+            throw new Error("Failed to start audio context");
+          }
+        } catch (error) {
+          log(`Error starting audio: ${error.message}`, "error");
+          updateStatus("Audio Start Failed", "error");
+        }
+      }
+
+      // Test functions
+      function playC4() {
+        log("Playing C4 note");
+        audioEngine.playNote("C4", 0.7);
+        setTimeout(() => audioEngine.releaseNote("C4"), 1000);
+      }
+
+      function playChord() {
+        log("Playing C Major chord (C4, E4, G4)");
+        const notes = ["C4", "E4", "G4"];
+        notes.forEach((note) => audioEngine.playNote(note, 0.6));
+        setTimeout(() => {
+          notes.forEach((note) => audioEngine.releaseNote(note));
+        }, 2000);
+      }
+
+      function playScale() {
+        log("Playing C Major scale");
+        const scale = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+        scale.forEach((note, index) => {
+          setTimeout(() => {
+            audioEngine.playNote(note, 0.7);
+            setTimeout(() => audioEngine.releaseNote(note), 300);
+          }, index * 200);
+        });
+      }
+
+      function testVelocity() {
+        log("Testing velocity levels (0.2, 0.5, 0.8, 1.0)");
+        const velocities = [0.2, 0.5, 0.8, 1.0];
+        velocities.forEach((velocity, index) => {
+          setTimeout(() => {
+            log(`Playing C4 with velocity ${velocity}`);
+            audioEngine.playNote("C4", velocity);
+            setTimeout(() => audioEngine.releaseNote("C4"), 500);
+          }, index * 700);
+        });
+      }
+
+      function toggleSustain() {
+        sustainActive = !sustainActive;
+        audioEngine.setSustainPedal(sustainActive);
+        log(`Sustain pedal: ${sustainActive ? "ON" : "OFF"}`);
+        document.getElementById("toggleSustain").textContent = sustainActive
+          ? "Sustain: ON"
+          : "Toggle Sustain Pedal";
+      }
+
+      function stopAllNotes() {
+        log("Stopping all notes");
+        audioEngine.stopAllNotes();
+      }
+
+      // Source switching functions
+      function switchToSampler() {
+        if (audioEngine && audioEngine.switchAudioSource(true)) {
+          log("Switched to piano sampler", "success");
+          updateActiveSource();
+        } else {
+          log("Failed to switch to sampler", "error");
+        }
+      }
+
+      function switchToSynthesizer() {
+        if (audioEngine && audioEngine.switchAudioSource(false)) {
+          log("Switched to synthesizer", "success");
+          updateActiveSource();
+        } else {
+          log("Failed to switch to synthesizer", "error");
+        }
+      }
+
+      // Event listeners
+      initButton.addEventListener("click", initializeAudio);
+      startButton.addEventListener("click", startAudioContext);
+      useSamplerButton.addEventListener("click", switchToSampler);
+      useSynthButton.addEventListener("click", switchToSynthesizer);
+      document.getElementById("testC4").addEventListener("click", playC4);
+      document.getElementById("testChord").addEventListener("click", playChord);
+      document.getElementById("testScale").addEventListener("click", playScale);
+      document
+        .getElementById("testVelocity")
+        .addEventListener("click", testVelocity);
+      document
+        .getElementById("toggleSustain")
+        .addEventListener("click", toggleSustain);
+      document
+        .getElementById("stopAll")
+        .addEventListener("click", stopAllNotes);
+      document.getElementById("clearLog").addEventListener("click", () => {
+        logOutput.innerHTML = "";
+      });
+
+      volumeSlider.addEventListener("input", (e) => {
+        const volume = e.target.value / 100;
+        if (audioEngine) {
+          audioEngine.setVolume(volume);
+          log(`Volume set to ${e.target.value}%`);
+        }
+      });
+
+      // Listen for audio errors
+      window.addEventListener("pianoAudioError", (event) => {
+        log(`Audio Error: ${event.detail.error.message}`, "error");
+        updateStatus("Audio Error", "error");
+      });
+
+      // Listen for sampler events
+      window.addEventListener("pianoSamplerReady", (event) => {
+        log("Piano sampler loaded successfully!", "success");
+        updateSamplerStatus(true);
+        updateActiveSource();
+
+        // Enable sampler button if audio context is started
+        if (audioEngine && audioEngine.getStatus().isAudioContextStarted) {
+          useSamplerButton.disabled = false;
+        }
+      });
+
+      window.addEventListener("pianoSamplerError", (event) => {
+        log(`Sampler Error: ${event.detail.error.message}`, "error");
+        updateSamplerStatus(false, "Sampler: Failed to load");
+        updateActiveSource();
+      });
+
+      // Initial log
+      log("Audio Engine Test Page Loaded");
+      updateStatus("Ready to Initialize", "info");
+    </script>
+  </body>
+</html>
