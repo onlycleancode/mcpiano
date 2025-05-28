@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audio Optimization Test - MCP Piano</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .test-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      .test-button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .test-button:hover {
+        background: #0056b3;
+      }
+      .test-button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .status.warning {
+        background: #fff3cd;
+        color: #856404;
+      }
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+      .log {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+      }
+      .metric-card {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        border-left: 4px solid #007bff;
+      }
+      .metric-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 5px;
+      }
+      .metric-value {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #333;
+      }
+      .velocity-demo {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 10px;
+        margin: 15px 0;
+      }
+      .velocity-button {
+        padding: 8px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        transition: all 0.2s;
+      }
+      .velocity-pp {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+      .velocity-p {
+        background: #f3e5f5;
+        color: #7b1fa2;
+      }
+      .velocity-mp {
+        background: #e8f5e8;
+        color: #388e3c;
+      }
+      .velocity-mf {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .velocity-f {
+        background: #ffebee;
+        color: #d32f2f;
+      }
+      .velocity-ff {
+        background: #fce4ec;
+        color: #c2185b;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🎹 MCP Piano Audio Optimization Test</h1>
+
+    <div class="test-container">
+      <h2>Initialization & Status</h2>
+      <div id="audioStatus" class="status info">Initializing...</div>
+      <button id="initAudio" class="test-button">
+        Initialize Audio Engine
+      </button>
+      <button id="startAudio" class="test-button" disabled>
+        Start Audio Context
+      </button>
+      <button id="refreshMetrics" class="test-button" disabled>
+        Refresh Metrics
+      </button>
+    </div>
+
+    <div class="test-container">
+      <h2>Optimization Metrics</h2>
+      <div id="metricsGrid" class="metrics-grid">
+        <!-- Metrics will be populated here -->
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Sample Preloading Test</h2>
+      <div id="preloadStatus" class="status info">Not started</div>
+      <button id="testPreloading" class="test-button" disabled>
+        Test Sample Preloading
+      </button>
+      <div id="preloadProgress" style="margin-top: 10px">
+        <div
+          style="
+            background: #e9ecef;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+          "
+        >
+          <div
+            id="progressBar"
+            style="
+              background: #007bff;
+              height: 100%;
+              width: 0%;
+              transition: width 0.3s;
+            "
+          ></div>
+        </div>
+        <div id="progressText" style="text-align: center; margin-top: 5px">
+          0%
+        </div>
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Velocity Curves Test</h2>
+      <p>Test the realistic velocity curves (pp, p, mp, mf, f, ff):</p>
+      <div class="velocity-demo">
+        <button class="velocity-button velocity-pp" data-velocity="15" disabled>
+          pp (15)<br />pianissimo
+        </button>
+        <button class="velocity-button velocity-p" data-velocity="40" disabled>
+          p (40)<br />piano
+        </button>
+        <button class="velocity-button velocity-mp" data-velocity="60" disabled>
+          mp (60)<br />mezzo-piano
+        </button>
+        <button class="velocity-button velocity-mf" data-velocity="80" disabled>
+          mf (80)<br />mezzo-forte
+        </button>
+        <button class="velocity-button velocity-f" data-velocity="100" disabled>
+          f (100)<br />forte
+        </button>
+        <button
+          class="velocity-button velocity-ff"
+          data-velocity="120"
+          disabled
+        >
+          ff (120)<br />fortissimo
+        </button>
+      </div>
+      <button id="testVelocitySequence" class="test-button" disabled>
+        Play Velocity Sequence
+      </button>
+    </div>
+
+    <div class="test-container">
+      <h2>Note Pooling Test</h2>
+      <button id="testRapidNotes" class="test-button" disabled>
+        Test Rapid Repeated Notes
+      </button>
+      <button id="testPoolStress" class="test-button" disabled>
+        Stress Test Note Pool
+      </button>
+      <div id="poolingResults" class="status info" style="margin-top: 10px">
+        Ready to test note pooling
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Limiter Test</h2>
+      <button id="testManyNotes" class="test-button" disabled>
+        Play Many Simultaneous Notes
+      </button>
+      <button id="testClippingPrevention" class="test-button" disabled>
+        Test Clipping Prevention
+      </button>
+      <div id="limiterResults" class="status info" style="margin-top: 10px">
+        Ready to test limiter
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Performance Test</h2>
+      <button id="testPerformance" class="test-button" disabled>
+        Run Performance Test
+      </button>
+      <div id="performanceResults" class="status info" style="margin-top: 10px">
+        Ready to run performance test
+      </div>
+    </div>
+
+    <div class="test-container">
+      <h2>Console Log</h2>
+      <div id="logOutput" class="log"></div>
+      <button id="clearLog" class="test-button">Clear Log</button>
+    </div>
+
+    <!-- Load required scripts -->
+    <script src="https://unpkg.com/tone@latest"></script>
+    <script src="js/audio-engine.js"></script>
+
+    <script>
+      let audioEngine = null;
+      const logOutput = document.getElementById("logOutput");
+
+      // Logging function
+      function log(message, type = "info") {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement("div");
+        logEntry.textContent = `[${timestamp}] ${message}`;
+        logEntry.style.color =
+          type === "error" ? "red" : type === "success" ? "green" : "black";
+        logOutput.appendChild(logEntry);
+        logOutput.scrollTop = logOutput.scrollHeight;
+        console.log(message);
+      }
+
+      // Update status display
+      function updateStatus(elementId, message, type) {
+        const element = document.getElementById(elementId);
+        if (element) {
+          element.textContent = message;
+          element.className = `status ${type}`;
+        }
+      }
+
+      // Update metrics display
+      function updateMetrics() {
+        if (!audioEngine) return;
+
+        const status = audioEngine.getStatus();
+        const metricsGrid = document.getElementById("metricsGrid");
+
+        metricsGrid.innerHTML = `
+          <div class="metric-card">
+            <div class="metric-label">Active Notes</div>
+            <div class="metric-value">${status.activeNotes}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Samples Preloaded</div>
+            <div class="metric-value">${
+              status.samplesPreloaded ? "Yes" : "No"
+            }</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Preload Progress</div>
+            <div class="metric-value">${status.preloadProgress.toFixed(
+              1
+            )}%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Note Pool Size</div>
+            <div class="metric-value">${status.notePoolSize}</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Pool Utilization</div>
+            <div class="metric-value">${status.poolUtilization}%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Limiter Enabled</div>
+            <div class="metric-value">${
+              status.limiterEnabled ? "Yes" : "No"
+            }</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Limiter Threshold</div>
+            <div class="metric-value">${status.limiterThreshold}dB</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Velocity Curve</div>
+            <div class="metric-value">${status.velocityCurveType}</div>
+          </div>
+        `;
+      }
+
+      // Initialize audio engine
+      async function initializeAudio() {
+        try {
+          log("Initializing Piano Audio Engine with optimizations...");
+          updateStatus("audioStatus", "Initializing...", "info");
+
+          audioEngine = new PianoAudioEngine();
+
+          // Listen for preload events
+          window.addEventListener("pianoSamplePreload", handlePreloadEvent);
+
+          const success = await audioEngine.initialize();
+
+          if (success) {
+            log("Audio engine initialized successfully", "success");
+            updateStatus(
+              "audioStatus",
+              "Initialized - Click Start Audio Context",
+              "success"
+            );
+            document.getElementById("startAudio").disabled = false;
+            document.getElementById("initAudio").disabled = true;
+            updateMetrics();
+          } else {
+            throw new Error("Failed to initialize audio engine");
+          }
+        } catch (error) {
+          log(`Error initializing audio: ${error.message}`, "error");
+          updateStatus("audioStatus", "Initialization Failed", "error");
+        }
+      }
+
+      // Start audio context
+      async function startAudioContext() {
+        try {
+          log("Starting audio context...");
+          updateStatus("audioStatus", "Starting Audio Context...", "info");
+
+          const success = await audioEngine.startAudioContext();
+
+          if (success) {
+            log("Audio context started successfully", "success");
+            updateStatus("audioStatus", "Audio Ready!", "success");
+            document.getElementById("startAudio").disabled = true;
+
+            // Enable all test buttons
+            document.querySelectorAll("button[disabled]").forEach((btn) => {
+              if (btn.id !== "initAudio" && btn.id !== "startAudio") {
+                btn.disabled = false;
+              }
+            });
+
+            updateMetrics();
+          } else {
+            throw new Error("Failed to start audio context");
+          }
+        } catch (error) {
+          log(`Error starting audio: ${error.message}`, "error");
+          updateStatus("audioStatus", "Audio Start Failed", "error");
+        }
+      }
+
+      // Handle preload events
+      function handlePreloadEvent(event) {
+        const { type, progress, loadedSamples, totalSamples, error } =
+          event.detail;
+        const progressBar = document.getElementById("progressBar");
+        const progressText = document.getElementById("progressText");
+
+        switch (type) {
+          case "start":
+            updateStatus("preloadStatus", "Loading samples...", "info");
+            log("Sample preloading started");
+            break;
+
+          case "progress":
+            updateStatus(
+              "preloadStatus",
+              `Loading... (${loadedSamples}/${totalSamples})`,
+              "info"
+            );
+            if (progressBar) progressBar.style.width = `${progress}%`;
+            if (progressText)
+              progressText.textContent = `${progress.toFixed(1)}%`;
+            break;
+
+          case "complete":
+            updateStatus("preloadStatus", "All samples loaded!", "success");
+            if (progressBar) progressBar.style.width = "100%";
+            if (progressText) progressText.textContent = "100%";
+            log("All samples preloaded successfully", "success");
+            updateMetrics();
+            break;
+
+          case "error":
+            updateStatus("preloadStatus", "Preload error", "error");
+            log(`Sample preloading error: ${error.message}`, "error");
+            break;
+        }
+      }
+
+      // Test functions
+      function testVelocityNote(velocity) {
+        if (!audioEngine) return;
+
+        log(`Playing C4 with velocity ${velocity}`);
+        audioEngine.playNote(60, velocity);
+        setTimeout(() => audioEngine.stopNote(60), 800);
+      }
+
+      function testVelocitySequence() {
+        const velocities = [15, 40, 60, 80, 100, 120]; // pp, p, mp, mf, f, ff
+        const labels = ["pp", "p", "mp", "mf", "f", "ff"];
+
+        log("Playing velocity sequence: pp → p → mp → mf → f → ff");
+
+        velocities.forEach((velocity, index) => {
+          setTimeout(() => {
+            log(`Playing ${labels[index]} (velocity ${velocity})`);
+            audioEngine.playNote(60, velocity);
+            setTimeout(() => audioEngine.stopNote(60), 400);
+          }, index * 600);
+        });
+      }
+
+      function testRapidNotes() {
+        log("Testing rapid repeated notes (note pooling)");
+        const startTime = performance.now();
+
+        // Play the same note rapidly 20 times
+        for (let i = 0; i < 20; i++) {
+          setTimeout(() => {
+            audioEngine.playNote(60, 80);
+            setTimeout(() => audioEngine.stopNote(60), 50);
+          }, i * 100);
+        }
+
+        setTimeout(() => {
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          updateStatus(
+            "poolingResults",
+            `Rapid notes test completed in ${duration.toFixed(1)}ms`,
+            "success"
+          );
+          updateMetrics();
+        }, 2100);
+      }
+
+      function testPoolStress() {
+        log("Stress testing note pool with multiple notes");
+        const notes = [60, 62, 64, 65, 67, 69, 71, 72]; // C major scale
+
+        // Play each note rapidly multiple times
+        notes.forEach((note, noteIndex) => {
+          for (let i = 0; i < 10; i++) {
+            setTimeout(() => {
+              audioEngine.playNote(note, 70);
+              setTimeout(() => audioEngine.stopNote(note), 30);
+            }, (noteIndex * 10 + i) * 50);
+          }
+        });
+
+        setTimeout(() => {
+          updateStatus(
+            "poolingResults",
+            "Pool stress test completed",
+            "success"
+          );
+          updateMetrics();
+        }, 4100);
+      }
+
+      function testManyNotes() {
+        log("Testing limiter with many simultaneous notes");
+        const notes = [];
+
+        // Generate 20 random notes
+        for (let i = 0; i < 20; i++) {
+          notes.push(60 + Math.floor(Math.random() * 24)); // C4 to B5
+        }
+
+        // Play all notes simultaneously
+        notes.forEach((note) => {
+          audioEngine.playNote(note, 100);
+        });
+
+        setTimeout(() => {
+          audioEngine.stopAll();
+          updateStatus(
+            "limiterResults",
+            "Many notes test completed - limiter prevented clipping",
+            "success"
+          );
+        }, 2000);
+      }
+
+      function testClippingPrevention() {
+        log("Testing clipping prevention with maximum velocity");
+
+        // Play a chord with maximum velocity
+        const chord = [60, 64, 67, 72, 76, 79]; // C major chord with octaves
+        audioEngine.playChord(chord, 127); // Maximum MIDI velocity
+
+        setTimeout(() => {
+          audioEngine.stopAll();
+          updateStatus(
+            "limiterResults",
+            "Clipping prevention test completed",
+            "success"
+          );
+        }, 1500);
+      }
+
+      function testPerformance() {
+        log("Running comprehensive performance test...");
+        const startTime = performance.now();
+
+        // Test sequence: velocity curves, rapid notes, chords, and cleanup
+        const testSequence = [
+          () => testVelocitySequence(),
+          () => setTimeout(testRapidNotes, 4000),
+          () => setTimeout(testManyNotes, 8000),
+          () =>
+            setTimeout(() => {
+              const endTime = performance.now();
+              const totalTime = endTime - startTime;
+              updateStatus(
+                "performanceResults",
+                `Performance test completed in ${totalTime.toFixed(1)}ms`,
+                "success"
+              );
+              updateMetrics();
+            }, 12000),
+        ];
+
+        testSequence.forEach((test) => test());
+      }
+
+      // Event listeners
+      document
+        .getElementById("initAudio")
+        .addEventListener("click", initializeAudio);
+      document
+        .getElementById("startAudio")
+        .addEventListener("click", startAudioContext);
+      document
+        .getElementById("refreshMetrics")
+        .addEventListener("click", updateMetrics);
+      document
+        .getElementById("testPreloading")
+        .addEventListener("click", () => {
+          if (
+            audioEngine &&
+            audioEngine.samplerReady &&
+            !audioEngine.samplesPreloaded
+          ) {
+            audioEngine.preloadAllSamples();
+          } else {
+            log("Samples already preloaded or sampler not ready");
+          }
+        });
+      document
+        .getElementById("testVelocitySequence")
+        .addEventListener("click", testVelocitySequence);
+      document
+        .getElementById("testRapidNotes")
+        .addEventListener("click", testRapidNotes);
+      document
+        .getElementById("testPoolStress")
+        .addEventListener("click", testPoolStress);
+      document
+        .getElementById("testManyNotes")
+        .addEventListener("click", testManyNotes);
+      document
+        .getElementById("testClippingPrevention")
+        .addEventListener("click", testClippingPrevention);
+      document
+        .getElementById("testPerformance")
+        .addEventListener("click", testPerformance);
+      document.getElementById("clearLog").addEventListener("click", () => {
+        logOutput.innerHTML = "";
+      });
+
+      // Velocity button event listeners
+      document.querySelectorAll(".velocity-button").forEach((button) => {
+        button.addEventListener("click", () => {
+          const velocity = parseInt(button.dataset.velocity);
+          testVelocityNote(velocity);
+        });
+      });
+
+      // Initial log
+      log("Audio Optimization Test Page Loaded");
+      updateStatus("audioStatus", "Ready to Initialize", "info");
+    </script>
+  </body>
+</html>

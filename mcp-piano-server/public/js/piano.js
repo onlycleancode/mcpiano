@@ -261,11 +261,11 @@ class PianoInterface {
   }
 
   /**
-   * Set up the audio engine for realistic piano sounds
+   * Set up the audio engine for realistic piano sounds with optimization features
    */
   async setupAudioEngine() {
     try {
-      console.log("🎵 Setting up Piano Audio Engine...");
+      console.log("🎵 Setting up Piano Audio Engine with optimizations...");
 
       // Check if PianoAudioEngine is available
       if (typeof PianoAudioEngine === "undefined") {
@@ -275,6 +275,9 @@ class PianoInterface {
 
       // Create audio engine instance
       this.audioEngine = new PianoAudioEngine();
+
+      // Listen for sample preloading events
+      this.setupPreloadingEventListeners();
 
       // Initialize the audio engine
       const initialized = await this.audioEngine.initialize();
@@ -311,6 +314,114 @@ class PianoInterface {
       }
     } catch (error) {
       console.error("❌ Error setting up audio engine:", error);
+    }
+  }
+
+  /**
+   * Set up event listeners for sample preloading progress
+   */
+  setupPreloadingEventListeners() {
+    window.addEventListener("pianoSamplePreload", (event) => {
+      const { type, progress, loadedSamples, totalSamples, error } =
+        event.detail;
+
+      switch (type) {
+        case "start":
+          this.showLoadingIndicator("Loading piano samples...", 0);
+          console.log("📦 Sample preloading started");
+          break;
+
+        case "progress":
+          this.updateLoadingIndicator(
+            `Loading piano samples... (${loadedSamples}/${totalSamples})`,
+            progress
+          );
+          console.log(`📦 Sample preloading progress: ${progress.toFixed(1)}%`);
+          break;
+
+        case "complete":
+          this.hideLoadingIndicator();
+          console.log("✅ All samples preloaded successfully");
+          this.updateConnectionStatus("connected", "Samples Preloaded");
+          break;
+
+        case "error":
+          this.hideLoadingIndicator();
+          console.error("❌ Sample preloading error:", error);
+          this.updateConnectionStatus(
+            "connected",
+            "Preload Error - Using Fallback"
+          );
+          break;
+      }
+    });
+  }
+
+  /**
+   * Show loading indicator with progress
+   */
+  showLoadingIndicator(message, progress = 0) {
+    let indicator = document.getElementById("sampleLoadingIndicator");
+
+    if (!indicator) {
+      // Create loading indicator if it doesn't exist
+      indicator = document.createElement("div");
+      indicator.id = "sampleLoadingIndicator";
+      indicator.className = "sample-loading-indicator";
+      indicator.innerHTML = `
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <div class="loading-message">${message}</div>
+          <div class="loading-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+            <div class="progress-text">${progress.toFixed(1)}%</div>
+          </div>
+        </div>
+      `;
+
+      // Add to piano container
+      const pianoContainer = document.querySelector(".piano-container");
+      if (pianoContainer) {
+        pianoContainer.appendChild(indicator);
+      } else {
+        document.body.appendChild(indicator);
+      }
+    } else {
+      // Update existing indicator
+      this.updateLoadingIndicator(message, progress);
+    }
+  }
+
+  /**
+   * Update loading indicator progress
+   */
+  updateLoadingIndicator(message, progress) {
+    const indicator = document.getElementById("sampleLoadingIndicator");
+    if (indicator) {
+      const messageEl = indicator.querySelector(".loading-message");
+      const progressFill = indicator.querySelector(".progress-fill");
+      const progressText = indicator.querySelector(".progress-text");
+
+      if (messageEl) messageEl.textContent = message;
+      if (progressFill) progressFill.style.width = `${progress}%`;
+      if (progressText) progressText.textContent = `${progress.toFixed(1)}%`;
+    }
+  }
+
+  /**
+   * Hide loading indicator
+   */
+  hideLoadingIndicator() {
+    const indicator = document.getElementById("sampleLoadingIndicator");
+    if (indicator) {
+      indicator.style.opacity = "0";
+      setTimeout(() => {
+        if (indicator.parentNode) {
+          indicator.parentNode.removeChild(indicator);
+        }
+      }, 500);
     }
   }
 
@@ -1107,18 +1218,6 @@ class PianoInterface {
     // TODO: Implement actual MCP communication
     if (this.state.mcpConnection) {
       // Send to MCP server
-    }
-  }
-
-  /**
-   * Hide loading indicator
-   */
-  hideLoadingIndicator() {
-    const loadingIndicator = document.getElementById("loadingIndicator");
-    if (loadingIndicator) {
-      setTimeout(() => {
-        loadingIndicator.classList.add("hidden");
-      }, 1000);
     }
   }
 
