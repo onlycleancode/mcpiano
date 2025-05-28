@@ -349,12 +349,12 @@ class PianoAudioEngine {
   }
 
   /**
-   * Play a piano note with velocity sensitivity
-   * @param {string|number} note - Note name (e.g., 'C4') or MIDI number
-   * @param {number} velocity - Velocity from 0.0 to 1.0 (default: 0.7)
+   * Play a piano note with velocity sensitivity and ADSR envelope
+   * @param {string|number} midiNumber - MIDI note number (21-108) or note name (e.g., 'C4')
+   * @param {number} velocity - Velocity from 0-127 (MIDI standard) or 0.0-1.0 (normalized)
    * @param {number} duration - Note duration in seconds (optional, for automatic release)
    */
-  playNote(note, velocity = 0.7, duration = null) {
+  playNote(midiNumber, velocity = 90, duration = null) {
     try {
       if (!this.isInitialized || !this.isAudioContextStarted) {
         console.warn(
@@ -370,43 +370,83 @@ class PianoAudioEngine {
         return false;
       }
 
-      // Ensure velocity is within valid range
-      velocity = Math.max(0, Math.min(1, velocity));
-
       // Convert MIDI number to note name if needed
       const noteName =
-        typeof note === "number" ? this.midiToNoteName(note) : note;
+        typeof midiNumber === "number"
+          ? this.midiToNoteName(midiNumber)
+          : midiNumber;
+
+      // Normalize velocity to 0.0-1.0 range
+      let normalizedVelocity;
+      if (velocity > 1.0) {
+        // MIDI velocity (0-127) - convert to 0.0-1.0
+        normalizedVelocity = Math.max(0, Math.min(127, velocity)) / 127;
+      } else {
+        // Already normalized (0.0-1.0)
+        normalizedVelocity = Math.max(0, Math.min(1, velocity));
+      }
+
+      // Map velocity to volume range (-20 to 0 dB) as specified
+      const velocityDb = -20 + normalizedVelocity * 20;
 
       // Apply velocity curve for more realistic dynamics
-      const adjustedVelocity = this.applyVelocityCurve(velocity);
+      const adjustedVelocity = this.applyVelocityCurve(normalizedVelocity);
 
-      // Calculate volume based on velocity (-40dB to 0dB range)
-      const velocityDb = -40 + adjustedVelocity * 40;
+      // Configure ADSR envelope for realistic attack/release
+      if (audioSource.envelope) {
+        // Adjust envelope based on velocity for more realistic response
+        const velocityFactor = normalizedVelocity;
+        audioSource.envelope.attack = 0.01 + velocityFactor * 0.02; // 0.01-0.03s attack
+        audioSource.envelope.decay = 0.1 + velocityFactor * 0.2; // 0.1-0.3s decay
+        audioSource.envelope.sustain = 0.3 + velocityFactor * 0.4; // 0.3-0.7 sustain level
+        audioSource.envelope.release = 0.8 + velocityFactor * 0.4; // 0.8-1.2s release
+      }
 
-      // Play the note
+      // Play the note with ADSR envelope
       if (duration) {
-        // Play note with specific duration
+        // Play note with specific duration and automatic release
         audioSource.triggerAttackRelease(
           noteName,
           duration,
           undefined,
           adjustedVelocity
         );
+
+        console.log(
+          `🎵 Playing note: ${noteName} (MIDI: ${
+            typeof midiNumber === "number" ? midiNumber : "N/A"
+          }, ` +
+            `velocity: ${velocity}, dB: ${velocityDb.toFixed(
+              1
+            )}, duration: ${duration}s, ` +
+            `source: ${this.getAudioSourceType()})`
+        );
       } else {
         // Start note (will need manual release)
         audioSource.triggerAttack(noteName, undefined, adjustedVelocity);
+
+        // Track active note with enhanced metadata
         this.activeNotes.set(noteName, {
+          midiNumber:
+            typeof midiNumber === "number"
+              ? midiNumber
+              : this.noteNameToMidi(noteName),
           velocity: adjustedVelocity,
+          originalVelocity: velocity,
+          velocityDb: velocityDb,
           startTime: Tone.now(),
           source: this.getAudioSourceType(),
         });
+
+        console.log(
+          `🎵 Playing note: ${noteName} (MIDI: ${
+            typeof midiNumber === "number" ? midiNumber : "N/A"
+          }, ` +
+            `velocity: ${velocity}, dB: ${velocityDb.toFixed(1)}, ` +
+            `source: ${this.getAudioSourceType()})`
+        );
       }
 
-      console.log(
-        `🎵 Playing note: ${noteName} (velocity: ${velocity.toFixed(
-          2
-        )}, dB: ${velocityDb.toFixed(1)}, source: ${this.getAudioSourceType()})`
-      );
       return true;
     } catch (error) {
       console.error("❌ Error playing note:", error);
@@ -416,10 +456,100 @@ class PianoAudioEngine {
   }
 
   /**
-   * Release a piano note
-   * @param {string|number} note - Note name or MIDI number to release
+   * Play multiple notes simultaneously (chord)
+   * @param {number[]} midiNumbers - Array of MIDI note numbers
+   * @param {number} velocity - Velocity from 0-127 (MIDI standard) or 0.0-1.0 (normalized)
+   * @param {number} duration - Note duration in seconds (optional, for automatic release)
    */
-  releaseNote(note) {
+  playChord(midiNumbers, velocity = 90, duration = null) {
+    try {
+      if (!this.isInitialized || !this.isAudioContextStarted) {
+        console.warn(
+          "⚠️ Audio engine not ready. Initialize and start audio context first."
+        );
+        return false;
+      }
+
+      if (!Array.isArray(midiNumbers) || midiNumbers.length === 0) {
+        console.warn("⚠️ Invalid chord: midiNumbers must be a non-empty array");
+        return false;
+      }
+
+      // Get active audio source
+      const audioSource = this.getActiveAudioSource();
+      if (!audioSource) {
+        console.warn("⚠️ No audio source available");
+        return false;
+      }
+
+      // Normalize velocity
+      let normalizedVelocity;
+      if (velocity > 1.0) {
+        normalizedVelocity = Math.max(0, Math.min(127, velocity)) / 127;
+      } else {
+        normalizedVelocity = Math.max(0, Math.min(1, velocity));
+      }
+
+      // Convert MIDI numbers to note names and ensure no phase issues
+      const noteNames = midiNumbers.map((midi) => this.midiToNoteName(midi));
+      const adjustedVelocity = this.applyVelocityCurve(normalizedVelocity);
+      const velocityDb = -20 + normalizedVelocity * 20;
+
+      // Play all notes simultaneously to avoid phase issues
+      const playTime = Tone.now();
+
+      if (duration) {
+        // Play chord with specific duration
+        noteNames.forEach((noteName) => {
+          audioSource.triggerAttackRelease(
+            noteName,
+            duration,
+            playTime,
+            adjustedVelocity
+          );
+        });
+      } else {
+        // Start all notes simultaneously
+        noteNames.forEach((noteName, index) => {
+          audioSource.triggerAttack(noteName, playTime, adjustedVelocity);
+
+          // Track each note in the chord
+          this.activeNotes.set(noteName, {
+            midiNumber: midiNumbers[index],
+            velocity: adjustedVelocity,
+            originalVelocity: velocity,
+            velocityDb: velocityDb,
+            startTime: playTime,
+            source: this.getAudioSourceType(),
+            isChordNote: true,
+            chordId: `chord_${playTime}`, // Group chord notes together
+          });
+        });
+      }
+
+      console.log(
+        `🎵 Playing chord: [${noteNames.join(", ")}] (MIDI: [${midiNumbers.join(
+          ", "
+        )}], ` +
+          `velocity: ${velocity}, dB: ${velocityDb.toFixed(1)}, ` +
+          `${
+            duration ? `duration: ${duration}s, ` : ""
+          }source: ${this.getAudioSourceType()})`
+      );
+
+      return true;
+    } catch (error) {
+      console.error("❌ Error playing chord:", error);
+      this.handleAudioError(error);
+      return false;
+    }
+  }
+
+  /**
+   * Stop a specific note with immediate release and short fade
+   * @param {string|number} midiNumber - MIDI note number or note name to stop
+   */
+  stopNote(midiNumber) {
     try {
       if (!this.isInitialized || !this.isAudioContextStarted) {
         return false;
@@ -430,8 +560,20 @@ class PianoAudioEngine {
         return false;
       }
 
+      // Convert MIDI number to note name if needed
       const noteName =
-        typeof note === "number" ? this.midiToNoteName(note) : note;
+        typeof midiNumber === "number"
+          ? this.midiToNoteName(midiNumber)
+          : midiNumber;
+
+      // Check if note is currently active
+      if (!this.activeNotes.has(noteName)) {
+        console.log(`🎵 Note ${noteName} is not currently playing`);
+        return true;
+      }
+
+      // Immediate release with short fade (0.05 seconds) to avoid clicks
+      const releaseTime = 0.05;
 
       // Check if sustain pedal is active
       if (this.sustainPedal) {
@@ -441,17 +583,92 @@ class PianoAudioEngine {
         return true;
       }
 
-      // Release the note
-      audioSource.triggerRelease(noteName);
+      // Perform immediate release with short fade
+      if (audioSource.triggerRelease) {
+        audioSource.triggerRelease(noteName, `+${releaseTime}`);
+      } else {
+        // Fallback for sources without triggerRelease
+        audioSource.releaseAll();
+      }
+
+      // Remove from active notes
       this.activeNotes.delete(noteName);
 
-      console.log(`🎵 Released note: ${noteName}`);
+      console.log(
+        `🎵 Stopped note: ${noteName} (MIDI: ${
+          typeof midiNumber === "number" ? midiNumber : "N/A"
+        }, ` + `fade: ${releaseTime}s)`
+      );
+
       return true;
     } catch (error) {
-      console.error("❌ Error releasing note:", error);
+      console.error("❌ Error stopping note:", error);
       this.handleAudioError(error);
       return false;
     }
+  }
+
+  /**
+   * Stop all currently playing notes and clear scheduled events
+   */
+  stopAll() {
+    try {
+      if (!this.isInitialized) {
+        return false;
+      }
+
+      // Cancel all scheduled events in Tone.js transport
+      if (typeof Tone !== "undefined" && Tone.Transport) {
+        Tone.Transport.cancel();
+      }
+
+      // Stop notes on all available sources with immediate release
+      if (this.samplerReady && this.sampler) {
+        this.sampler.releaseAll(Tone.now() + 0.05); // 50ms fade to avoid clicks
+      }
+      if (this.synthReady && this.synth) {
+        this.synth.releaseAll(Tone.now() + 0.05); // 50ms fade to avoid clicks
+      }
+
+      // Clear all tracking data
+      const activeCount = this.activeNotes.size;
+      const sustainedCount = this.sustainedNotes.size;
+
+      this.activeNotes.clear();
+      this.sustainedNotes.clear();
+
+      // Reset sustain pedal state
+      this.sustainPedal = false;
+
+      console.log(
+        `🔇 All notes stopped (${activeCount} active, ${sustainedCount} sustained). ` +
+          `Scheduled events cleared.`
+      );
+
+      return true;
+    } catch (error) {
+      console.error("❌ Error stopping all notes:", error);
+      return false;
+    }
+  }
+
+  // Backward compatibility methods
+  /**
+   * @deprecated Use stopNote() instead
+   * Release a piano note (backward compatibility)
+   */
+  releaseNote(note) {
+    console.warn("⚠️ releaseNote() is deprecated. Use stopNote() instead.");
+    return this.stopNote(note);
+  }
+
+  /**
+   * @deprecated Use stopAll() instead
+   * Stop all currently playing notes (backward compatibility)
+   */
+  stopAllNotes() {
+    console.warn("⚠️ stopAllNotes() is deprecated. Use stopAll() instead.");
+    return this.stopAll();
   }
 
   /**
@@ -510,34 +727,6 @@ class PianoAudioEngine {
       return true;
     } catch (error) {
       console.error("❌ Error setting volume:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Stop all currently playing notes
-   */
-  stopAllNotes() {
-    try {
-      if (!this.isInitialized) {
-        return false;
-      }
-
-      // Stop notes on all available sources
-      if (this.samplerReady && this.sampler) {
-        this.sampler.releaseAll();
-      }
-      if (this.synthReady && this.synth) {
-        this.synth.releaseAll();
-      }
-
-      this.activeNotes.clear();
-      this.sustainedNotes.clear();
-
-      console.log("🔇 All notes stopped");
-      return true;
-    } catch (error) {
-      console.error("❌ Error stopping all notes:", error);
       return false;
     }
   }
@@ -603,6 +792,54 @@ class PianoAudioEngine {
     const octave = Math.floor(midiNumber / 12) - 1;
     const noteIndex = midiNumber % 12;
     return noteNames[noteIndex] + octave;
+  }
+
+  /**
+   * Convert note name to MIDI note number
+   * @param {string} noteName - Note name (e.g., 'C4', 'F#3')
+   * @returns {number} MIDI note number (0-127)
+   */
+  noteNameToMidi(noteName) {
+    const noteMap = {
+      C: 0,
+      "C#": 1,
+      DB: 1,
+      D: 2,
+      "D#": 3,
+      EB: 3,
+      E: 4,
+      F: 5,
+      "F#": 6,
+      GB: 6,
+      G: 7,
+      "G#": 8,
+      AB: 8,
+      A: 9,
+      "A#": 10,
+      BB: 10,
+      B: 11,
+    };
+
+    // Parse note name (e.g., "C4", "F#3", "Bb2")
+    const match = noteName.match(/^([A-G][#B]?)(-?\d+)$/i);
+    if (!match) {
+      console.warn(`⚠️ Invalid note name: ${noteName}`);
+      return 60; // Default to middle C
+    }
+
+    const notePart = match[1].toUpperCase();
+    const octave = parseInt(match[2]);
+
+    if (!(notePart in noteMap)) {
+      console.warn(`⚠️ Invalid note: ${notePart}`);
+      return 60; // Default to middle C
+    }
+
+    // Calculate MIDI number: (octave + 1) * 12 + note offset
+    const midiNumber = (octave + 1) * 12 + noteMap[notePart];
+
+    // Ensure MIDI number is within valid range (0-127)
+    return Math.max(0, Math.min(127, midiNumber));
   }
 
   /**

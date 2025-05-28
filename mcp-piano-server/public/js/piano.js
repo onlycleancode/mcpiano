@@ -930,13 +930,13 @@ class PianoInterface {
     this.state.activeKeys.delete(keyId);
     const key = this.keys[keyId];
 
-    // Release note with audio engine
+    // Stop note with audio engine (updated method name)
     if (
       this.audioEngine &&
       this.state.audioEngineReady &&
       this.state.audioContextStarted
     ) {
-      this.audioEngine.releaseNote(key.midiNote);
+      this.audioEngine.stopNote(key.midiNote);
     }
 
     // Send note off to MCP server
@@ -950,13 +950,13 @@ class PianoInterface {
    * Stop all active keys
    */
   stopAllKeys() {
-    // Stop all notes with audio engine
+    // Stop all notes with audio engine (updated method name)
     if (
       this.audioEngine &&
       this.state.audioEngineReady &&
       this.state.audioContextStarted
     ) {
-      this.audioEngine.stopAllNotes();
+      this.audioEngine.stopAll();
     }
 
     for (let keyId of this.state.activeKeys) {

@@ -104,6 +104,9 @@
       <button id="testChord" class="test-button" disabled>
         Play C Major Chord
       </button>
+      <button id="testChordProgression" class="test-button" disabled>
+        Test Chord Progression
+      </button>
       <button id="testScale" class="test-button" disabled>
         Play C Major Scale
       </button>
@@ -266,40 +269,64 @@
 
       // Test functions
       function playC4() {
-        log("Playing C4 note");
-        audioEngine.playNote("C4", 0.7);
-        setTimeout(() => audioEngine.releaseNote("C4"), 1000);
+        log("Playing C4 note (MIDI 60) with velocity 90");
+        audioEngine.playNote(60, 90); // Using MIDI number and MIDI velocity
+        setTimeout(() => audioEngine.stopNote(60), 1000);
       }
 
       function playChord() {
-        log("Playing C Major chord (C4, E4, G4)");
-        const notes = ["C4", "E4", "G4"];
-        notes.forEach((note) => audioEngine.playNote(note, 0.6));
+        log("Playing C Major chord using playChord method (MIDI: 60, 64, 67)");
+        const midiNumbers = [60, 64, 67]; // C4, E4, G4
+        audioEngine.playChord(midiNumbers, 100); // MIDI velocity 100
         setTimeout(() => {
-          notes.forEach((note) => audioEngine.releaseNote(note));
+          // Stop individual notes in the chord
+          midiNumbers.forEach((midi) => audioEngine.stopNote(midi));
         }, 2000);
       }
 
       function playScale() {
-        log("Playing C Major scale");
-        const scale = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
-        scale.forEach((note, index) => {
+        log("Playing C Major scale with varying velocities");
+        const scaleMidi = [60, 62, 64, 65, 67, 69, 71, 72]; // C4 to C5
+        const velocities = [70, 75, 80, 85, 90, 95, 100, 105]; // Increasing velocity
+
+        scaleMidi.forEach((midi, index) => {
           setTimeout(() => {
-            audioEngine.playNote(note, 0.7);
-            setTimeout(() => audioEngine.releaseNote(note), 300);
+            const velocity = velocities[index];
+            log(`Playing MIDI ${midi} with velocity ${velocity}`);
+            audioEngine.playNote(midi, velocity);
+            setTimeout(() => audioEngine.stopNote(midi), 300);
           }, index * 200);
         });
       }
 
       function testVelocity() {
-        log("Testing velocity levels (0.2, 0.5, 0.8, 1.0)");
-        const velocities = [0.2, 0.5, 0.8, 1.0];
+        log("Testing MIDI velocity levels (32, 64, 96, 127)");
+        const velocities = [32, 64, 96, 127]; // MIDI velocity range
         velocities.forEach((velocity, index) => {
           setTimeout(() => {
-            log(`Playing C4 with velocity ${velocity}`);
-            audioEngine.playNote("C4", velocity);
-            setTimeout(() => audioEngine.releaseNote("C4"), 500);
+            log(`Playing C4 (MIDI 60) with MIDI velocity ${velocity}`);
+            audioEngine.playNote(60, velocity);
+            setTimeout(() => audioEngine.stopNote(60), 500);
           }, index * 700);
+        });
+      }
+
+      function testChordProgression() {
+        log(
+          "Testing chord progression: C Major -> F Major -> G Major -> C Major"
+        );
+        const chords = [
+          { name: "C Major", midi: [60, 64, 67] },
+          { name: "F Major", midi: [65, 69, 72] },
+          { name: "G Major", midi: [67, 71, 74] },
+          { name: "C Major", midi: [60, 64, 67] },
+        ];
+
+        chords.forEach((chord, index) => {
+          setTimeout(() => {
+            log(`Playing ${chord.name} chord`);
+            audioEngine.playChord(chord.midi, 90, 1.5); // 1.5 second duration
+          }, index * 2000);
         });
       }
 
@@ -313,8 +340,8 @@
       }
 
       function stopAllNotes() {
-        log("Stopping all notes");
-        audioEngine.stopAllNotes();
+        log("Stopping all notes using stopAll()");
+        audioEngine.stopAll();
       }
 
       // Source switching functions
@@ -343,6 +370,9 @@
       useSynthButton.addEventListener("click", switchToSynthesizer);
       document.getElementById("testC4").addEventListener("click", playC4);
       document.getElementById("testChord").addEventListener("click", playChord);
+      document
+        .getElementById("testChordProgression")
+        .addEventListener("click", testChordProgression);
       document.getElementById("testScale").addEventListener("click", playScale);
       document
         .getElementById("testVelocity")
