@@ -34,8 +34,9 @@
     <main class="piano-container">
       <!-- Piano controls panel -->
       <div class="controls-panel">
+        <!-- Master Volume Control -->
         <div class="control-group">
-          <label for="volumeControl">Volume</label>
+          <label for="volumeControl">Master Volume</label>
           <input
             type="range"
             id="volumeControl"
@@ -47,6 +48,7 @@
           <span class="volume-value">75%</span>
         </div>
 
+        <!-- Octave Control -->
         <div class="control-group">
           <label for="octaveControl">Octave</label>
           <select id="octaveControl" class="octave-selector">
@@ -58,15 +60,38 @@
           </select>
         </div>
 
+        <!-- Sustain Pedal Control -->
         <div class="control-group">
+          <label for="sustainToggle">Sustain Pedal</label>
           <button
             id="sustainToggle"
             class="sustain-button"
             aria-label="Toggle sustain pedal"
+            title="Hold notes after key release"
           >
             <span class="sustain-icon">🎵</span>
-            Sustain
+            <span class="sustain-text">Off</span>
           </button>
+        </div>
+
+        <!-- Audio Engine Status -->
+        <div class="control-group">
+          <label>Audio Engine</label>
+          <div class="audio-status-indicator" id="audioStatus">
+            <div class="audio-status-dot"></div>
+            <span class="audio-status-text">Initializing...</span>
+          </div>
+        </div>
+
+        <!-- Sample Loading Progress -->
+        <div class="control-group" id="sampleLoadingGroup">
+          <label>Sample Loading</label>
+          <div class="sample-progress-container">
+            <div class="sample-progress-bar">
+              <div class="sample-progress-fill" id="sampleProgressFill"></div>
+            </div>
+            <span class="sample-progress-text" id="sampleProgressText">0%</span>
+          </div>
         </div>
       </div>
 
@@ -79,10 +104,7 @@
             role="application"
             aria-label="88-key piano keyboard interface"
             tabindex="0"
-          >
-            Your browser does not support the HTML5 Canvas element. Please
-            update your browser to use this piano interface.
-          </canvas>
+          ></canvas>
 
           <!-- Fallback SVG for older browsers -->
           <svg
@@ -158,16 +180,16 @@
       </div>
     </div>
 
-    <!-- Loading indicator -->
-    <div id="loadingIndicator" class="loading-overlay">
-      <div class="loading-spinner"></div>
-      <p>Loading Piano Interface...</p>
-    </div>
-
     <!-- JavaScript -->
     <script src="https://unpkg.com/tone@latest"></script>
     <script src="js/audio-engine.js"></script>
-    <script src="js/piano-init.js"></script>
     <script src="js/piano.js"></script>
+    <script>
+      // Simple initialization - just create the piano interface
+      document.addEventListener("DOMContentLoaded", function () {
+        console.log("🎹 Initializing Piano Interface...");
+        new PianoInterface();
+      });
+    </script>
   </body>
 </html>

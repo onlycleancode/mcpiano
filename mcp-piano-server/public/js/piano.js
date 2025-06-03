@@ -74,10 +74,12 @@ class PianoInterface {
     this.setupEventListeners();
     this.setupAudioEngine();
     this.generateKeyLayout();
-    this.renderPiano();
-    this.updateScrollIndicators();
     this.setupMCPConnection();
-    this.hideLoadingIndicator();
+
+    // Render immediately after setup
+    this.renderPiano();
+
+    console.log("🎹 Piano interface setup complete");
   }
 
   /**
@@ -86,17 +88,37 @@ class PianoInterface {
   setupCanvas() {
     this.canvas = document.getElementById("pianoKeyboard");
 
-    if (!this.canvas || !this.canvas.getContext) {
-      console.warn("Canvas not supported, falling back to SVG");
+    if (!this.canvas) {
+      console.error("❌ Canvas element not found!");
       this.setupSVGFallback();
       return;
     }
 
-    this.ctx = this.canvas.getContext("2d");
-    this.resizeCanvas();
+    if (!this.canvas.getContext) {
+      console.warn("❌ Canvas not supported, falling back to SVG");
+      this.setupSVGFallback();
+      return;
+    }
 
-    // Set up high DPI support
-    this.setupHighDPI();
+    console.log("✅ Canvas element found, setting up context...");
+    this.ctx = this.canvas.getContext("2d");
+
+    if (!this.ctx) {
+      console.error("❌ Failed to get 2D context from canvas!");
+      this.setupSVGFallback();
+      return;
+    }
+
+    console.log("✅ Canvas 2D context obtained successfully");
+
+    // Clear any existing canvas text content
+    this.canvas.innerHTML = "";
+
+    // Force canvas to be visible
+    this.canvas.style.display = "block";
+    this.canvas.style.visibility = "visible";
+
+    this.resizeCanvas();
   }
 
   /**
@@ -121,12 +143,29 @@ class PianoInterface {
     const dpr = window.devicePixelRatio || 1;
     const rect = this.canvas.getBoundingClientRect();
 
+    console.log(`📱 Device pixel ratio: ${dpr}`);
+    console.log(`📐 Canvas bounding rect: ${rect.width}x${rect.height}`);
+
+    // Set the actual canvas size in memory (scaled for high DPI)
     this.canvas.width = rect.width * dpr;
     this.canvas.height = rect.height * dpr;
+
+    console.log(
+      `🖼️ Canvas internal dimensions: ${this.canvas.width}x${this.canvas.height}`
+    );
+
+    // Scale the canvas back down using CSS
     this.canvas.style.width = rect.width + "px";
     this.canvas.style.height = rect.height + "px";
 
+    console.log(
+      `🎨 Canvas CSS dimensions: ${this.canvas.style.width} x ${this.canvas.style.height}`
+    );
+
+    // Scale the drawing context so everything draws at the correct size
     this.ctx.scale(dpr, dpr);
+
+    console.log(`✅ High DPI setup complete`);
   }
 
   /**
@@ -136,9 +175,15 @@ class PianoInterface {
     const container = this.canvas.parentElement.parentElement; // Get piano-keyboard-container
     const containerRect = container.getBoundingClientRect();
 
+    console.log(
+      `📐 Container dimensions: ${containerRect.width}x${containerRect.height}`
+    );
+
     // Calculate available space
     const availableWidth = containerRect.width - 32; // Account for container padding
     const availableHeight = containerRect.height - 32;
+
+    console.log(`📐 Available space: ${availableWidth}x${availableHeight}`);
 
     // Detect if device supports touch
     const isTouchDevice =
@@ -160,28 +205,28 @@ class PianoInterface {
       isTouchDevice
     );
 
+    console.log(`🎹 Calculated piano dimensions: ${pianoWidth}x${pianoHeight}`);
+
     // Determine if we need horizontal scrolling
     this.state.isHorizontalScrollMode = pianoWidth > availableWidth;
 
-    // Set canvas dimensions
+    // Set canvas style dimensions first
     if (this.state.isHorizontalScrollMode) {
       // Use full piano width, enable horizontal scrolling
-      this.canvas.width = pianoWidth;
-      this.canvas.height = pianoHeight;
       this.canvas.style.width = pianoWidth + "px";
       this.canvas.style.height = pianoHeight + "px";
 
       // Ensure container allows horizontal scroll
       container.style.justifyContent = "flex-start";
+      console.log(`🎹 Horizontal scroll mode: ${pianoWidth}x${pianoHeight}`);
     } else {
       // Fit within container
-      this.canvas.width = pianoWidth;
-      this.canvas.height = pianoHeight;
       this.canvas.style.width = pianoWidth + "px";
       this.canvas.style.height = pianoHeight + "px";
 
       // Center in container
       container.style.justifyContent = "center";
+      console.log(`🎹 Fit mode: ${pianoWidth}x${pianoHeight}`);
     }
 
     // Store scale for coordinate calculations (always 1 for direct pixel mapping)
@@ -197,7 +242,7 @@ class PianoInterface {
       pianoHeight * this.config.blackKeyHeightRatio
     );
 
-    // Set up high DPI support
+    // Set up high DPI support after setting style dimensions
     this.setupHighDPI();
   }
 
@@ -267,14 +312,19 @@ class PianoInterface {
     try {
       console.log("🎵 Setting up Piano Audio Engine with optimizations...");
 
+      // Update audio status to initializing
+      this.updateAudioStatus("initializing", "Initializing...");
+
       // Check if PianoAudioEngine is available
       if (typeof PianoAudioEngine === "undefined") {
         console.warn("⚠️ PianoAudioEngine not found. Audio will be disabled.");
+        this.updateAudioStatus("error", "Audio Disabled");
         return;
       }
 
       // Create audio engine instance
       this.audioEngine = new PianoAudioEngine();
+      this.updateAudioStatus("loading", "Loading Engine...");
 
       // Listen for sample preloading events
       this.setupPreloadingEventListeners();
@@ -284,6 +334,7 @@ class PianoInterface {
       if (initialized) {
         this.state.audioEngineReady = true;
         console.log("✅ Audio engine initialized successfully");
+        this.updateAudioStatus("ready", "Ready");
 
         // Set initial volume
         this.audioEngine.setVolume(this.state.volume / 100);
@@ -298,6 +349,7 @@ class PianoInterface {
         window.addEventListener("pianoSamplerReady", (event) => {
           console.log("🎹 Piano sampler loaded successfully!");
           this.updateConnectionStatus("connected", "Piano Sampler Ready");
+          this.updateAudioStatus("ready", "Sampler Ready");
         });
 
         window.addEventListener("pianoSamplerError", (event) => {
@@ -305,15 +357,18 @@ class PianoInterface {
             "⚠️ Piano sampler failed to load, using synthesizer fallback"
           );
           this.updateConnectionStatus("connected", "Synthesizer Active");
+          this.updateAudioStatus("ready", "Synth Ready");
         });
 
         // Add click handler to start audio context (required by browser policies)
         this.setupAudioContextActivation();
       } else {
         console.warn("⚠️ Failed to initialize audio engine");
+        this.updateAudioStatus("error", "Init Failed");
       }
     } catch (error) {
       console.error("❌ Error setting up audio engine:", error);
+      this.updateAudioStatus("error", "Setup Error");
     }
   }
 
@@ -321,108 +376,19 @@ class PianoInterface {
    * Set up event listeners for sample preloading progress
    */
   setupPreloadingEventListeners() {
-    window.addEventListener("pianoSamplePreload", (event) => {
-      const { type, progress, loadedSamples, totalSamples, error } =
-        event.detail;
-
-      switch (type) {
-        case "start":
-          this.showLoadingIndicator("Loading piano samples...", 0);
-          console.log("📦 Sample preloading started");
-          break;
-
-        case "progress":
-          this.updateLoadingIndicator(
-            `Loading piano samples... (${loadedSamples}/${totalSamples})`,
-            progress
-          );
-          console.log(`📦 Sample preloading progress: ${progress.toFixed(1)}%`);
-          break;
-
-        case "complete":
-          this.hideLoadingIndicator();
-          console.log("✅ All samples preloaded successfully");
-          this.updateConnectionStatus("connected", "Samples Preloaded");
-          break;
-
-        case "error":
-          this.hideLoadingIndicator();
-          console.error("❌ Sample preloading error:", error);
-          this.updateConnectionStatus(
-            "connected",
-            "Preload Error - Using Fallback"
-          );
-          break;
-      }
+    window.addEventListener("pianoSamplerReady", (event) => {
+      console.log("🎹 Piano sampler loaded successfully!");
+      this.updateConnectionStatus("connected", "Piano Sampler Ready");
+      this.updateAudioStatus("ready", "Sampler Ready");
     });
-  }
 
-  /**
-   * Show loading indicator with progress
-   */
-  showLoadingIndicator(message, progress = 0) {
-    let indicator = document.getElementById("sampleLoadingIndicator");
-
-    if (!indicator) {
-      // Create loading indicator if it doesn't exist
-      indicator = document.createElement("div");
-      indicator.id = "sampleLoadingIndicator";
-      indicator.className = "sample-loading-indicator";
-      indicator.innerHTML = `
-        <div class="loading-content">
-          <div class="loading-spinner"></div>
-          <div class="loading-message">${message}</div>
-          <div class="loading-progress">
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${progress}%"></div>
-            </div>
-            <div class="progress-text">${progress.toFixed(1)}%</div>
-          </div>
-        </div>
-      `;
-
-      // Add to piano container
-      const pianoContainer = document.querySelector(".piano-container");
-      if (pianoContainer) {
-        pianoContainer.appendChild(indicator);
-      } else {
-        document.body.appendChild(indicator);
-      }
-    } else {
-      // Update existing indicator
-      this.updateLoadingIndicator(message, progress);
-    }
-  }
-
-  /**
-   * Update loading indicator progress
-   */
-  updateLoadingIndicator(message, progress) {
-    const indicator = document.getElementById("sampleLoadingIndicator");
-    if (indicator) {
-      const messageEl = indicator.querySelector(".loading-message");
-      const progressFill = indicator.querySelector(".progress-fill");
-      const progressText = indicator.querySelector(".progress-text");
-
-      if (messageEl) messageEl.textContent = message;
-      if (progressFill) progressFill.style.width = `${progress}%`;
-      if (progressText) progressText.textContent = `${progress.toFixed(1)}%`;
-    }
-  }
-
-  /**
-   * Hide loading indicator
-   */
-  hideLoadingIndicator() {
-    const indicator = document.getElementById("sampleLoadingIndicator");
-    if (indicator) {
-      indicator.style.opacity = "0";
-      setTimeout(() => {
-        if (indicator.parentNode) {
-          indicator.parentNode.removeChild(indicator);
-        }
-      }, 500);
-    }
+    window.addEventListener("pianoSamplerError", (event) => {
+      console.warn(
+        "⚠️ Piano sampler failed to load, using synthesizer fallback"
+      );
+      this.updateConnectionStatus("connected", "Synthesizer Active");
+      this.updateAudioStatus("ready", "Synth Ready");
+    });
   }
 
   /**
@@ -460,7 +426,10 @@ class PianoInterface {
     console.error("🚨 Audio engine error:", error);
     this.state.audioEngineReady = false;
 
-    // Show user-friendly error message
+    // Update audio status indicator
+    this.updateAudioStatus("error", "Audio Error");
+
+    // Show user-friendly error message in connection status as well
     const statusIndicator = document.getElementById("connectionStatus");
     if (statusIndicator) {
       const statusText = statusIndicator.querySelector(".status-text");
@@ -594,24 +563,53 @@ class PianoInterface {
    * Render the piano on canvas
    */
   renderPiano() {
-    if (!this.ctx) return;
+    if (!this.ctx) {
+      console.warn("❌ Cannot render piano: Canvas context not available");
+      return;
+    }
 
-    // Clear canvas
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this.keys || this.keys.length === 0) {
+      console.warn("❌ Cannot render piano: No keys generated");
+      return;
+    }
+
+    console.log(
+      `🎹 Rendering piano with ${this.keys.length} keys on canvas ${this.canvas.width}x${this.canvas.height}`
+    );
+
+    // Get the actual display dimensions (not internal canvas dimensions)
+    const displayWidth = this.canvas.offsetWidth;
+    const displayHeight = this.canvas.offsetHeight;
+
+    console.log(`📐 Canvas display size: ${displayWidth}x${displayHeight}`);
+
+    // Clear canvas completely
+    this.ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+    // Set a background to ensure canvas is working
+    this.ctx.fillStyle = "#f5f5f5";
+    this.ctx.fillRect(0, 0, displayWidth, displayHeight);
 
     // Set rendering properties
     this.ctx.imageSmoothingEnabled = true;
     this.ctx.imageSmoothingQuality = "high";
 
     // Render white keys first
-    this.keys
-      .filter((key) => !key.isBlack)
-      .forEach((key) => this.renderKey(key));
+    const whiteKeys = this.keys.filter((key) => !key.isBlack);
+    const blackKeys = this.keys.filter((key) => key.isBlack);
 
-    // Render black keys on top
-    this.keys
-      .filter((key) => key.isBlack)
-      .forEach((key) => this.renderKey(key));
+    console.log(
+      `🎹 Rendering ${whiteKeys.length} white keys and ${blackKeys.length} black keys`
+    );
+
+    whiteKeys.forEach((key) => this.renderKey(key));
+    blackKeys.forEach((key) => this.renderKey(key));
+
+    // Force canvas update
+    this.ctx.save();
+    this.ctx.restore();
+
+    console.log("✅ Piano rendering complete");
   }
 
   /**
@@ -722,12 +720,18 @@ class PianoInterface {
       });
     }
 
-    // Sustain button
+    // Sustain button with enhanced feedback
     const sustainButton = document.getElementById("sustainToggle");
+    const sustainText = sustainButton?.querySelector(".sustain-text");
     if (sustainButton) {
       sustainButton.addEventListener("click", () => {
         this.state.sustainPedal = !this.state.sustainPedal;
         sustainButton.classList.toggle("active", this.state.sustainPedal);
+
+        // Update sustain text
+        if (sustainText) {
+          sustainText.textContent = this.state.sustainPedal ? "On" : "Off";
+        }
 
         // Update audio engine sustain pedal
         if (this.audioEngine && this.state.audioEngineReady) {
@@ -1167,7 +1171,7 @@ class PianoInterface {
 
     setTimeout(() => {
       this.updateConnectionStatus("connected");
-    }, 2000);
+    }, 1000);
   }
 
   /**
@@ -1239,6 +1243,31 @@ class PianoInterface {
     this.state.audioContextStarted = false;
 
     console.log("🗑️ Piano Interface disposed");
+  }
+
+  /**
+   * Update the audio engine status indicator
+   * @param {string} status - Status: 'initializing', 'loading', 'ready', 'error'
+   * @param {string} message - Status message to display
+   */
+  updateAudioStatus(status, message) {
+    const audioStatus = document.getElementById("audioStatus");
+    const audioStatusText = audioStatus?.querySelector(".audio-status-text");
+
+    if (audioStatus && audioStatusText) {
+      // Remove all status classes
+      audioStatus.classList.remove("ready", "error", "loading");
+
+      // Add current status class
+      if (status !== "initializing") {
+        audioStatus.classList.add(status);
+      }
+
+      // Update status text
+      audioStatusText.textContent = message;
+
+      console.log(`🎛️ Audio Status: ${status} - ${message}`);
+    }
   }
 }
 

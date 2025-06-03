@@ -150,6 +150,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  max-width: 200px;
 }
 
 .control-group label {
@@ -162,7 +164,7 @@ body {
 
 /* Volume slider */
 .volume-slider {
-  width: 120px;
+  width: 100%;
   height: 6px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
@@ -224,20 +226,18 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  padding: 0.6rem 0.8rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   color: #ffffff;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  outline: none;
 }
 
 .sustain-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .sustain-button.active {
@@ -246,15 +246,132 @@ body {
   box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
 }
 
+.sustain-button.active .sustain-text {
+  font-weight: 600;
+}
+
 .sustain-icon {
-  font-size: 1.2rem;
+  font-size: 1rem;
+}
+
+/* Audio Engine Status Indicator */
+.audio-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  min-width: 100px;
+}
+
+.audio-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffd93d;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+/* Audio engine status states */
+.audio-status-indicator.ready .audio-status-dot {
+  background: #6bcf7f;
+  animation: none;
+}
+
+.audio-status-indicator.error .audio-status-dot {
+  background: #ff6b6b;
+  animation: none;
+}
+
+.audio-status-indicator.loading .audio-status-dot {
+  background: #00d4ff;
+  animation: pulse 1.5s infinite;
+}
+
+.audio-status-text {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #b8c5d1;
+  white-space: nowrap;
+}
+
+/* Sample Loading Progress */
+.sample-progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 80px;
+}
+
+.sample-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.sample-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00d4ff, #ff6b6b);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.sample-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.sample-progress-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #b8c5d1;
+}
+
+/* Hide sample loading group when complete */
+.sample-progress-container.complete {
+  opacity: 0.5;
+}
+
+.sample-progress-container.hidden {
+  display: none;
 }
 
 /* ===== PIANO KEYBOARD CONTAINER WITH RESPONSIVE SCALING ===== */
 .piano-keyboard-container {
   position: relative;
   width: 100%;
-  height: 100%;
+  min-height: 300px; /* Add minimum height to ensure container has space */
+  height: auto; /* Changed from 100% to auto to better fit content */
+  flex: 1; /* Allow it to grow and take available space */
   overflow-x: auto;
   overflow-y: hidden;
   display: flex;
@@ -272,6 +389,9 @@ body {
   cursor: pointer;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  /* Ensure canvas has minimum dimensions */
+  min-width: 100px;
+  min-height: 100px;
 }
 
 /* Horizontal Scroll Mode Indicators */
@@ -756,24 +876,39 @@ body {
   }
 
   .controls-panel {
-    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  /* Further compress audio controls on very small screens */
+  .audio-status-indicator {
+    min-width: 90px;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .audio-status-text {
+    font-size: 0.65rem;
+  }
+
+  .sample-progress-container {
+    min-width: 70px;
+  }
+
+  .sample-progress-text {
+    font-size: 0.65rem;
+  }
+
+  .sustain-button {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .sustain-icon {
+    font-size: 0.9rem;
   }
 
   .piano-keyboard-container {
-    padding: 0.5rem;
-    min-height: 160px; /* Increased minimum height for better touch interaction */
-    /* Add padding to sides for better scroll indication */
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-
-  /* Touch-friendly canvas sizing for very small screens */
-  .piano-canvas,
-  .piano-svg {
-    min-height: 120px;
-    /* Ensure touch targets are large enough - Cross-browser support */
-    -ms-touch-action: manipulation; /* IE support */
-    touch-action: manipulation;
+    padding: 4px;
+    min-height: 180px;
   }
 
   .key-mapping-display {
