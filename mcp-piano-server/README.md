@@ -1,178 +1,345 @@
 # MCP Piano Server
 
-A Model Context Protocol (MCP) server that provides piano and music theory functionality. This server enables AI assistants to work with musical concepts like chords, scales, progressions, and music analysis.
+A Model Context Protocol (MCP) server providing comprehensive piano functionality with real-time state synchronization, musical analysis, and WebSocket-based collaborative features.
 
 ## Features
 
-- **Chord Analysis**: Analyze and identify chords from note combinations
-- **Scale Generation**: Generate various musical scales (major, minor, modes, pentatonic, etc.)
-- **Chord Progressions**: Create and analyze common chord progressions
-- **Music Theory**: Access to comprehensive music theory knowledge
-- **Note Utilities**: Convert between different note representations
+### 🎹 Piano Functionality
 
-## Installation
+- **88-key piano layout** with accurate note mapping (A0 to C8)
+- **MIDI support** with note numbers, velocities, and frequencies
+- **Multiple notation formats** (scientific, sharp/flat notations)
+- **Chord and scale generation** with musical analysis
+- **Real-time note events** via WebSocket connections
 
-### Prerequisites
+### 🔄 State Synchronization (NEW)
 
-- Node.js 18.0.0 or higher
-- npm or yarn package manager
+- **Real-time state tracking** of currently pressed keys
+- **Multi-client synchronization** with conflict resolution
+- **Advanced conflict resolution strategies**:
+  - `latest_wins`: Most recent timestamp wins
+  - `velocity_priority`: Higher velocity takes precedence
+  - `client_priority`: Priority clients override regular clients
+  - `highest_priority`: Explicit priority values determine winner
+- **Priority client system** for teaching/performance scenarios
+- **Session management** with unique session IDs
+- **State reconciliation** for complex conflict scenarios
+- **Comprehensive statistics** and monitoring
 
-### Setup
+### 🎵 Musical Analysis
 
-1. Clone the repository:
+- **Chord recognition** from note combinations
+- **Scale generation** in various modes
+- **Progression analysis** with harmonic context
+- **Time signature and tempo support**
+
+### 🌐 WebSocket Communication
+
+- **Real-time messaging** with validation
+- **Heartbeat monitoring** for connection health
+- **Enhanced message types** for state synchronization
+- **Client connection management** with unique IDs
+
+## Quick Start
+
+### Installation
 
 ```bash
+# Clone the repository
 git clone <repository-url>
 cd mcp-piano-server
-```
 
-2. Install dependencies:
-
-```bash
+# Install dependencies
 npm install
-```
 
-3. Build the project:
-
-```bash
+# Build the project
 npm run build
-```
 
-## Usage
-
-### Development
-
-Run the server in development mode with hot reload:
-
-```bash
-npm run dev
-```
-
-### Production
-
-Build and start the server:
-
-```bash
-npm run build
+# Start the server
 npm start
 ```
 
-### Available Scripts
+### Testing State Synchronization
 
-- `npm run build` - Compile TypeScript to JavaScript
-- `npm run start` - Start the compiled server
-- `npm run dev` - Run in development mode with nodemon
-- `npm run watch` - Watch for changes and recompile
-- `npm run clean` - Remove compiled output
-- `npm run lint` - Type check without emitting files
+1. **Start the server**:
 
-## Project Structure
+   ```bash
+   npm start
+   ```
 
+2. **Open the test interface**:
+   Navigate to `http://localhost:3000/test-state-sync.html`
+
+3. **Test multi-client sync**:
+
+   - Open multiple browser tabs/windows
+   - Press piano keys in one tab
+   - Observe real-time synchronization in other tabs
+
+4. **Test conflict resolution**:
+   - Simultaneously press the same key from multiple clients
+   - Observe conflict resolution in action
+   - Check the event log for detailed information
+
+## API Documentation
+
+### WebSocket Messages
+
+#### State Synchronization
+
+```typescript
+// State sync message
+{
+  "type": "state_sync",
+  "activeNotes": [{"midiNumber": 60, "velocity": 64}],
+  "lastUpdateTimestamp": 1234567890,
+  "activeClientCount": 3,
+  "stateVersion": 42,
+  "sessionId": "session_1234_abc",
+  "statistics": { /* detailed stats */ }
+}
+
+// Note events
+{
+  "type": "note_on",
+  "midiNumber": 60,
+  "velocity": 64,
+  "timestamp": 1234567890,
+  "source": "ui"
+}
+
+// Priority client request
+{
+  "type": "priority_client_request",
+  "timestamp": 1234567890,
+  "source": "ui"
+}
 ```
-mcp-piano-server/
-├── src/
-│   ├── server.ts        # Main server implementation
-│   ├── types/           # TypeScript type definitions
-│   │   └── index.ts     # Musical type definitions
-│   └── config/          # Configuration files
-│       └── index.ts     # Musical constants and server config
-├── dist/                # Compiled JavaScript output
-├── package.json         # Package configuration
-├── tsconfig.json        # TypeScript configuration
-├── .gitignore          # Git ignore rules
-└── README.md           # This file
+
+#### Advanced Features
+
+```typescript
+// State reconciliation request
+{
+  "type": "state_reconciliation_request",
+  "data": {
+    "remoteState": {
+      "activeNotes": [...],
+      "stateVersion": 43,
+      "sessionId": "different_session"
+    }
+  }
+}
+
+// Statistics request
+{
+  "type": "client_statistics_request",
+  "timestamp": 1234567890,
+  "source": "ui"
+}
 ```
+
+### REST API Endpoints
+
+- `GET /api/health` - Server health check
+- `GET /api/piano-layout` - Complete piano layout data
+- `GET /api/piano-key/:identifier` - Specific key information
+- `GET /api/piano-octave/:octave` - Keys in specific octave
 
 ## Configuration
 
-The server uses TypeScript with strict mode enabled and includes:
+### Conflict Resolution Strategy
 
-- **Strict Type Checking**: Full TypeScript strict mode
-- **ES2020 Target**: Modern JavaScript features
-- **Source Maps**: For debugging support
-- **Declaration Files**: For type definitions
+Configure the state manager with different conflict resolution strategies:
 
-## MCP Integration
+```typescript
+// In server initialization
+const stateManager = new PianoStateManager("latest_wins");
+// Options: "latest_wins", "velocity_priority", "client_priority", "highest_priority"
+```
 
-This server implements the Model Context Protocol specification and can be used with any MCP-compatible client. The server provides tools for:
+### Environment Variables
 
-- Musical analysis and theory
-- Chord and scale generation
-- Progression creation
-- Note manipulation
+```bash
+# Server configuration
+PORT=3000
+HOST=0.0.0.0
 
-## Musical Concepts
+# WebSocket settings
+WS_HEARTBEAT_INTERVAL=30000
 
-### Supported Scales
+# State synchronization
+CONFLICT_RESOLUTION_STRATEGY=latest_wins
+```
 
-- Major and minor scales
-- Church modes (Dorian, Phrygian, Lydian, Mixolydian, Locrian)
-- Pentatonic scales
-- Blues scale
-- Harmonic and melodic minor
+## Architecture
 
-### Supported Chords
+### Core Components
 
-- Triads (major, minor, diminished, augmented)
-- Seventh chords (major7, minor7, dominant7, etc.)
-- Suspended chords (sus2, sus4)
-- Extended chords (add9, 6th chords)
+1. **PianoStateManager** (`src/utils/piano-state-manager.ts`)
 
-### Common Progressions
+   - Manages real-time piano state
+   - Handles conflict resolution
+   - Tracks client connections and priorities
 
-- I-V-vi-IV (Pop progression)
-- vi-IV-I-V (Popular modern progression)
-- ii-V-I (Jazz standard)
-- And many more...
+2. **WebSocket Manager** (`src/server.ts`)
 
-## Development
+   - Handles client connections
+   - Routes messages between clients
+   - Manages state synchronization
 
-### Type Safety
+3. **Piano Model** (`src/models/piano.js`)
 
-This project uses TypeScript with strict mode enabled, ensuring:
+   - 88-key piano representation
+   - MIDI note mapping
+   - Musical calculations
 
-- No implicit any types
-- Strict null checks
-- Comprehensive type checking
-- Runtime type safety
+4. **Message Protocol** (`src/types/messages.ts`)
+   - Typed message definitions
+   - Validation schemas
+   - Serialization helpers
 
-### Code Organization
+### State Synchronization Flow
 
-- **Types**: All musical types and interfaces in `src/types/`
-- **Configuration**: Musical constants and server config in `src/config/`
-- **Server Logic**: Main MCP server implementation in `src/server.ts`
+1. **Client Connection**
+
+   - Server assigns unique client ID
+   - Sends welcome message with state info
+   - Delivers current piano state
+   - Notifies other clients
+
+2. **Note Events**
+
+   - Client sends note press/release
+   - Server validates and applies to state
+   - Conflict resolution if needed
+   - Broadcast to other clients
+
+3. **Conflict Resolution**
+   - Multiple strategies available
+   - Detailed conflict logging
+   - State version tracking
+   - Automatic reconciliation
+
+## Testing
+
+### Unit Tests
+
+```bash
+npm test
+```
+
+### Integration Tests
+
+```bash
+npm run test:integration
+```
+
+### Manual Testing
+
+- Use the web interface at `/test-state-sync.html`
+- Open multiple browser instances
+- Test various conflict scenarios
+- Monitor the event log for debugging
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes with proper TypeScript types
-4. Test your changes: `npm run lint`
-5. Commit your changes: `git commit -m 'Add feature'`
-6. Push to the branch: `git push origin feature-name`
-7. Submit a pull request
+2. Create a feature branch
+3. Implement your changes
+4. Add tests for new functionality
+5. Update documentation
+6. Submit a pull request
+
+## Advanced Usage
+
+### Priority Client System
+
+Some clients can be granted priority status for teaching or performance scenarios:
+
+```javascript
+// Request priority status
+websocket.send(
+  JSON.stringify({
+    type: "priority_client_request",
+    timestamp: Date.now(),
+    source: "ui",
+  })
+);
+```
+
+Priority clients can:
+
+- Override regular client actions
+- Remove notes pressed by other clients
+- Have their events take precedence in conflicts
+
+### State Reconciliation
+
+For complex scenarios, clients can request state reconciliation:
+
+```javascript
+// Request reconciliation with custom state
+websocket.send(
+  JSON.stringify({
+    type: "state_reconciliation_request",
+    data: { remoteState: customState },
+    timestamp: Date.now(),
+    source: "ui",
+  })
+);
+```
+
+### Statistics Monitoring
+
+Get detailed statistics about the piano state:
+
+```javascript
+// Request comprehensive statistics
+websocket.send(
+  JSON.stringify({
+    type: "client_statistics_request",
+    timestamp: Date.now(),
+    source: "ui",
+  })
+);
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **State Synchronization Not Working**
+
+   - Check WebSocket connection status
+   - Verify message format in browser console
+   - Check server logs for validation errors
+
+2. **Conflict Resolution Issues**
+
+   - Review conflict resolution strategy
+   - Check client priority settings
+   - Monitor state version numbers
+
+3. **Performance Issues**
+   - Monitor client count and active notes
+   - Check heartbeat interval settings
+   - Review state history size
+
+### Debug Information
+
+Enable detailed logging:
+
+```bash
+DEBUG=piano:* npm start
+```
+
+## Documentation
+
+- [State Synchronization Guide](docs/state-synchronization.md)
+- [API Reference](docs/api-reference.md)
+- [Architecture Overview](docs/architecture.md)
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Roadmap
-
-- [ ] MIDI file import/export
-- [ ] Audio synthesis capabilities
-- [ ] Advanced harmonic analysis
-- [ ] Rhythm and timing tools
-- [ ] Integration with external music APIs
-- [ ] Web interface for testing
-
-## Support
-
-For questions, issues, or contributions, please:
-
-- Open an issue on GitHub
-- Check the documentation
-- Review existing issues for solutions
-
----
-
-Built with ❤️ for the music community using the Model Context Protocol.
+MIT License - see LICENSE file for details.

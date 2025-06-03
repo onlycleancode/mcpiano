@@ -2,6 +2,8 @@
  * Type definitions for MCP Piano Server
  */
 
+import type { WebSocket as WSWebSocket } from "ws";
+
 // Export all piano-specific types
 export * from "./piano.js";
 
@@ -108,4 +110,77 @@ export class InvalidChordError extends PianoError {
     super(`Invalid chord: ${chord}`);
     this.code = "INVALID_CHORD";
   }
+}
+
+// Validation constants
+export const MIN_TEMPO = 40;
+export const MAX_TEMPO = 300;
+export const MIN_VELOCITY = 0;
+export const MAX_VELOCITY = 127;
+export const MIN_OCTAVE = 0;
+export const MAX_OCTAVE = 9;
+
+// WebSocket communication types
+export interface PianoWebSocket {
+  id: string;
+  ws: WSWebSocket;
+  isAlive: boolean;
+}
+
+// WebSocket message types for piano communication
+export interface WebSocketMessage {
+  type: string;
+  timestamp: number;
+  data?: any;
+}
+
+// Piano-specific WebSocket message types
+export interface PianoKeyMessage extends WebSocketMessage {
+  type: "piano-key-press" | "piano-key-release";
+  data: {
+    noteNumber: number;
+    noteName: string;
+    velocity: number;
+    frequency: number;
+  };
+}
+
+export interface PianoChordMessage extends WebSocketMessage {
+  type: "piano-chord-play";
+  data: {
+    chord: Chord;
+    velocity: number;
+  };
+}
+
+export interface PianoProgressionMessage extends WebSocketMessage {
+  type: "piano-progression-play";
+  data: {
+    progression: Progression;
+  };
+}
+
+export interface PianoStatusMessage extends WebSocketMessage {
+  type: "piano-status";
+  data: {
+    isPlaying: boolean;
+    currentTempo: number;
+    activeNotes: number[];
+  };
+}
+
+// Union type for all piano WebSocket messages
+export type PianoWebSocketMessage =
+  | PianoKeyMessage
+  | PianoChordMessage
+  | PianoProgressionMessage
+  | PianoStatusMessage
+  | WebSocketMessage;
+
+// WebSocket client status
+export interface WebSocketClientStatus {
+  id: string;
+  connected: boolean;
+  lastPing: number;
+  lastPong: number;
 }

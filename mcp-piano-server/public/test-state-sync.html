@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Piano State Synchronization Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .status-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+      }
+
+      .status-card {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        border-left: 4px solid #007bff;
+      }
+
+      .status-card h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+      }
+
+      .status-card .value {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #007bff;
+      }
+
+      .connection-status {
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        text-align: center;
+        font-weight: bold;
+      }
+
+      .connected {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .piano-container {
+        margin-bottom: 30px;
+      }
+
+      .piano {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        height: 120px;
+        background: #333;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+      }
+
+      .key {
+        border: 2px solid #333;
+        cursor: pointer;
+        -webkit-user-select: none;
+        user-select: none;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        transition: all 0.1s ease;
+      }
+
+      .white-key {
+        width: 40px;
+        height: 100px;
+        background: white;
+        color: #333;
+        margin: 0 1px;
+        padding-bottom: 10px;
+      }
+
+      .black-key {
+        width: 28px;
+        height: 65px;
+        background: #333;
+        color: white;
+        margin: 0 -14px;
+        z-index: 2;
+        padding-bottom: 8px;
+      }
+
+      .key.active {
+        background: #ff6b6b !important;
+        color: white !important;
+        transform: translateY(2px);
+      }
+
+      .key.remote-active {
+        background: #4ecdc4 !important;
+        color: white !important;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.2s;
+      }
+
+      .btn-primary {
+        background-color: #007bff;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background-color: #0056b3;
+      }
+
+      .btn-danger {
+        background-color: #dc3545;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background-color: #c82333;
+      }
+
+      .btn-success {
+        background-color: #28a745;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background-color: #218838;
+      }
+
+      .log-container {
+        margin-top: 30px;
+      }
+
+      .log {
+        height: 300px;
+        overflow-y: auto;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 12px;
+        border-radius: 4px;
+      }
+
+      .log-entry {
+        margin-bottom: 5px;
+        padding: 2px 0;
+      }
+
+      .log-timestamp {
+        color: #6c757d;
+      }
+
+      .log-type-error {
+        color: #dc3545;
+      }
+
+      .log-type-info {
+        color: #17a2b8;
+      }
+
+      .log-type-success {
+        color: #28a745;
+      }
+
+      .advanced-panel {
+        margin-top: 30px;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 6px;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+
+      .form-group select,
+      .form-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🎹 Piano State Synchronization Test</h1>
+        <p>Test the real-time state synchronization system with multiple clients</p>
+      </div>
+
+      <div class="connection-status" id="connectionStatus">
+        Connecting...
+      </div>
+
+      <div class="status-panel">
+        <div class="status-card">
+          <h4>Connection Status</h4>
+          <div class="value" id="statusValue">Disconnected</div>
+        </div>
+        <div class="status-card">
+          <h4>Client ID</h4>
+          <div class="value" id="clientId">-</div>
+        </div>
+        <div class="status-card">
+          <h4>Active Notes</h4>
+          <div class="value" id="activeNotes">0</div>
+        </div>
+        <div class="status-card">
+          <h4>Connected Clients</h4>
+          <div class="value" id="connectedClients">0</div>
+        </div>
+        <div class="status-card">
+          <h4>State Version</h4>
+          <div class="value" id="stateVersion">0</div>
+        </div>
+        <div class="status-card">
+          <h4>Priority Status</h4>
+          <div class="value" id="priorityStatus">Regular</div>
+        </div>
+      </div>
+
+      <div class="piano-container">
+        <h3>Interactive Piano (C4 - B4)</h3>
+        <div class="piano" id="piano">
+          <!-- Piano keys will be generated by JavaScript -->
+        </div>
+        <p><strong>Legend:</strong> 
+          <span style="color: #ff6b6b;">■</span> Your keys | 
+          <span style="color: #4ecdc4;">■</span> Other clients' keys
+        </p>
+      </div>
+
+      <div class="controls">
+        <button class="btn btn-primary" onclick="connectWebSocket()">Connect</button>
+          <h3>Connection Status</h3>
+          <div>
+            Status:
+            <span id="connection-status" class="connection-status disconnected"
+              >Disconnected</span
+            >
+          </div>
+          <div>Client ID: <span id="client-id">Not connected</span></div>
+          <div>Server: <span id="server-info">Unknown</span></div>
+        </div>
+
+        <div class="status-card">
+          <h3>Piano State</h3>
+          <div>Active Notes: <span id="active-note-count">0</span></div>
+          <div>Connected Clients: <span id="client-count">0</span></div>
+          <div>State Version: <span id="state-version">0</span></div>
+          <div>Last Update: <span id="last-update">Never</span></div>
+          <div class="active-notes" id="active-notes"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn btn-primary" onclick="connectWebSocket()">
+          Connect
+        </button>
+        <button class="btn btn-secondary" onclick="disconnectWebSocket()">
+          Disconnect
+        </button>
+        <button class="btn btn-secondary" onclick="requestStateSync()">
+          Sync State
+        </button>
+        <button class="btn btn-danger" onclick="sendAllNotesOff()">
+          All Notes Off
+        </button>
+        <button class="btn btn-secondary" onclick="clearLog()">
+          Clear Log
+        </button>
+      </div>
+
+      <!-- Simple piano keyboard for testing -->
+      <div class="piano-keys" id="piano-keys">
+        <!-- Piano keys will be generated by JavaScript -->
+      </div>
+
+      <div class="log-panel">
+        <h4>Event Log</h4>
+        <div id="log-container"></div>
+      </div>
+    </div>
+
+    <script src="js/websocket-client.js"></script>
+    <script>
+      let wsClient = null;
+      let activeNotes = new Set();
+
+      // Initialize the test interface
+      function init() {
+        generatePianoKeys();
+        connectWebSocket();
+      }
+
+      // Generate a simple piano keyboard (C4 to B4 for testing)
+      function generatePianoKeys() {
+        const container = document.getElementById("piano-keys");
+        const notes = [
+          { name: "C4", midi: 60, type: "white" },
+          { name: "C#4", midi: 61, type: "black" },
+          { name: "D4", midi: 62, type: "white" },
+          { name: "D#4", midi: 63, type: "black" },
+          { name: "E4", midi: 64, type: "white" },
+          { name: "F4", midi: 65, type: "white" },
+          { name: "F#4", midi: 66, type: "black" },
+          { name: "G4", midi: 67, type: "white" },
+          { name: "G#4", midi: 68, type: "black" },
+          { name: "A4", midi: 69, type: "white" },
+          { name: "A#4", midi: 70, type: "black" },
+          { name: "B4", midi: 71, type: "white" },
+        ];
+
+        notes.forEach((note) => {
+          const key = document.createElement("div");
+          key.className = `piano-key ${note.type}`;
+          key.textContent = note.name;
+          key.dataset.midi = note.midi;
+
+          // Mouse events for piano key interaction
+          key.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            playNote(note.midi, 64);
+          });
+
+          key.addEventListener("mouseup", (e) => {
+            e.preventDefault();
+            stopNote(note.midi);
+          });
+
+          key.addEventListener("mouseleave", (e) => {
+            stopNote(note.midi);
+          });
+
+          container.appendChild(key);
+        });
+      }
+
+      // Connect to WebSocket server
+      function connectWebSocket() {
+        if (wsClient) {
+          wsClient.destroy();
+        }
+
+        wsClient = new PianoWebSocketClient();
+
+        // Set up event listeners
+        wsClient.on("connected", handleConnected);
+        wsClient.on("disconnected", handleDisconnected);
+        wsClient.on("stateChange", handleStateChange);
+        wsClient.on("state_sync", handleStateSync);
+        wsClient.on("note_on", handleNoteOn);
+        wsClient.on("note_off", handleNoteOff);
+        wsClient.on("chord_on", handleChordOn);
+        wsClient.on("all_notes_off", handleAllNotesOff);
+        wsClient.on("connection-established", handleConnectionEstablished);
+
+        log("Connecting to WebSocket server...", "info");
+      }
+
+      // Disconnect from WebSocket server
+      function disconnectWebSocket() {
+        if (wsClient) {
+          wsClient.disconnect();
+          log("Disconnected from server", "warning");
+        }
+      }
+
+      // Request state synchronization
+      function requestStateSync() {
+        if (wsClient) {
+          wsClient.requestStateSync();
+          log("Requested state synchronization", "info");
+        }
+      }
+
+      // Send all notes off
+      function sendAllNotesOff() {
+        if (wsClient) {
+          wsClient.sendAllNotesOff();
+          log("Sent all notes off", "info");
+        }
+      }
+
+      // Play a note
+      function playNote(midiNumber, velocity = 64) {
+        if (wsClient && !activeNotes.has(midiNumber)) {
+          wsClient.sendNoteOn(midiNumber, velocity);
+          activeNotes.add(midiNumber);
+          updateKeyVisual(midiNumber, true);
+          log(`Note ON: ${midiNumber} (velocity: ${velocity})`, "success");
+        }
+      }
+
+      // Stop a note
+      function stopNote(midiNumber) {
+        if (wsClient && activeNotes.has(midiNumber)) {
+          wsClient.sendNoteOff(midiNumber);
+          activeNotes.delete(midiNumber);
+          updateKeyVisual(midiNumber, false);
+          log(`Note OFF: ${midiNumber}`, "success");
+        }
+      }
+
+      // Update visual state of piano key
+      function updateKeyVisual(midiNumber, isActive) {
+        const key = document.querySelector(`[data-midi="${midiNumber}"]`);
+        if (key) {
+          if (isActive) {
+            key.classList.add("active");
+          } else {
+            key.classList.remove("active");
+          }
+        }
+      }
+
+      // Event handlers
+      function handleConnected(data) {
+        log("Connected to server", "success");
+        updateConnectionStatus("connected");
+      }
+
+      function handleDisconnected(data) {
+        log(`Disconnected: ${data.reason}`, "error");
+        updateConnectionStatus("disconnected");
+        clearActiveNotes();
+      }
+
+      function handleStateChange(data) {
+        updateConnectionStatus(data.newState.toLowerCase());
+      }
+
+      function handleConnectionEstablished(data) {
+        document.getElementById("client-id").textContent = data.data.clientId;
+        document.getElementById(
+          "server-info"
+        ).textContent = `${data.data.serverInfo.name} v${data.data.serverInfo.version}`;
+        log(
+          `Connection established with client ID: ${data.data.clientId}`,
+          "success"
+        );
+      }
+
+      function handleStateSync(data) {
+        log(
+          `State sync: ${data.activeNotes.length} notes, ${data.activeClientCount} clients, version ${data.stateVersion}`,
+          "info"
+        );
+
+        // Update UI with synchronized state
+        document.getElementById("active-note-count").textContent =
+          data.activeNotes.length;
+        document.getElementById("client-count").textContent =
+          data.activeClientCount;
+        document.getElementById("state-version").textContent =
+          data.stateVersion;
+        document.getElementById("last-update").textContent = new Date(
+          data.lastUpdateTimestamp
+        ).toLocaleTimeString();
+
+        // Clear current active notes and apply synchronized state
+        clearActiveNotes();
+        data.activeNotes.forEach((note) => {
+          activeNotes.add(note.midiNumber);
+          updateKeyVisual(note.midiNumber, true);
+        });
+
+        updateActiveNotesDisplay(data.activeNotes);
+      }
+
+      function handleNoteOn(data) {
+        if (!activeNotes.has(data.midiNumber)) {
+          activeNotes.add(data.midiNumber);
+          updateKeyVisual(data.midiNumber, true);
+          log(`Remote Note ON: ${data.midiNumber}`, "info");
+        }
+      }
+
+      function handleNoteOff(data) {
+        if (activeNotes.has(data.midiNumber)) {
+          activeNotes.delete(data.midiNumber);
+          updateKeyVisual(data.midiNumber, false);
+          log(`Remote Note OFF: ${data.midiNumber}`, "info");
+        }
+      }
+
+      function handleChordOn(data) {
+        data.notes.forEach((note) => {
+          if (!activeNotes.has(note.midiNumber)) {
+            activeNotes.add(note.midiNumber);
+            updateKeyVisual(note.midiNumber, true);
+          }
+        });
+        log(`Remote Chord ON: ${data.notes.length} notes`, "info");
+      }
+
+      function handleAllNotesOff(data) {
+        clearActiveNotes();
+        log("Remote All Notes OFF", "warning");
+      }
+
+      // Helper functions
+      function updateConnectionStatus(status) {
+        const statusElement = document.getElementById("connection-status");
+        statusElement.className = `connection-status ${status}`;
+        statusElement.textContent = status;
+      }
+
+      function clearActiveNotes() {
+        activeNotes.forEach((midiNumber) => {
+          updateKeyVisual(midiNumber, false);
+        });
+        activeNotes.clear();
+        updateActiveNotesDisplay([]);
+      }
+
+      function updateActiveNotesDisplay(notes) {
+        const container = document.getElementById("active-notes");
+        container.innerHTML = "";
+        notes.forEach((note) => {
+          const badge = document.createElement("span");
+          badge.className = "note-badge";
+          badge.textContent = note.midiNumber;
+          container.appendChild(badge);
+        });
+      }
+
+      function log(message, type = "info") {
+        const container = document.getElementById("log-container");
+        const entry = document.createElement("div");
+        entry.className = `log-entry log-${type}`;
+        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        container.appendChild(entry);
+        container.scrollTop = container.scrollHeight;
+      }
+
+      function clearLog() {
+        document.getElementById("log-container").innerHTML = "";
+      }
+
+      // Initialize when page loads
+      document.addEventListener("DOMContentLoaded", init);
+    </script>
+  </body>
+</html>
