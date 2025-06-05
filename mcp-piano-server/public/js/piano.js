@@ -27,10 +27,11 @@ class PianoInterface {
     // Piano state
     this.state = {
       activeKeys: new Set(),
+      remoteActiveKeys: new Set(), // Track remote note events separately
       volume: 75,
       octave: 4,
       sustainPedal: false,
-      connectionStatus: "connecting", // 'connecting', 'connected', 'disconnected'
+      connectionStatus: "disconnected", // 'connecting', 'connected', 'disconnected'
       mcpConnection: null,
       // Responsive state
       currentKeyWidth: this.config.defaultWhiteKeyWidth,
@@ -47,6 +48,12 @@ class PianoInterface {
 
     // Audio engine
     this.audioEngine = null;
+
+    // WebSocket client for real-time communication
+    this.wsClient = null;
+
+    // Piano renderer for key highlighting
+    this.pianoRenderer = null;
 
     // Initialize the interface
     this.init();
@@ -74,7 +81,8 @@ class PianoInterface {
     this.setupEventListeners();
     this.setupAudioEngine();
     this.generateKeyLayout();
-    this.setupMCPConnection();
+    this.setupWebSocketConnection(); // Add WebSocket setup
+    this.setupPianoRenderer(); // Initialize piano renderer
 
     // Render immediately after setup
     this.renderPiano();
@@ -1162,20 +1170,395 @@ class PianoInterface {
   }
 
   /**
-   * Set up MCP server connection
+   * Set up WebSocket connection for real-time communication
    */
-  setupMCPConnection() {
-    // This would be implemented to connect to the actual MCP server
-    // For now, simulate connection status updates
-    this.updateConnectionStatus("connecting");
+  setupWebSocketConnection() {
+    try {
+      console.log("🔌 Initializing WebSocket connection...");
 
-    setTimeout(() => {
-      this.updateConnectionStatus("connected");
-    }, 1000);
+      // Initialize WebSocket client
+      this.wsClient = new PianoWebSocketClient();
+
+      // Subscribe to WebSocket messages for remote note events
+      this.wsClient.on("note_on", (data) => {
+        console.log("📨 Remote note_on received:", data);
+        this.handleRemoteNoteOn(data);
+      });
+
+      this.wsClient.on("note_off", (data) => {
+        console.log("📨 Remote note_off received:", data);
+        this.handleRemoteNoteOff(data);
+      });
+
+      // Handle connection state changes
+      this.wsClient.on("connected", () => {
+        console.log("✅ WebSocket connected");
+        this.updateConnectionStatus("connected", "Connected to server");
+      });
+
+      this.wsClient.on("disconnected", (data) => {
+        console.log("❌ WebSocket disconnected:", data);
+        this.updateConnectionStatus("disconnected", "Disconnected from server");
+      });
+
+      this.wsClient.on("error", (error) => {
+        console.error("❌ WebSocket error:", error);
+        this.updateConnectionStatus("disconnected", "Connection error");
+      });
+
+      // Handle state synchronization
+      this.wsClient.on("state_sync", (stateInfo) => {
+        console.log("🔄 State sync received:", stateInfo);
+        this.handleStateSync(stateInfo);
+      });
+
+      // Update initial connection status
+      this.updateConnectionStatus("connecting", "Connecting to server...");
+
+      console.log("✅ WebSocket client initialized");
+    } catch (error) {
+      console.error("❌ Failed to initialize WebSocket connection:", error);
+      this.updateConnectionStatus("disconnected", "Connection failed");
+    }
   }
 
   /**
-   * Update connection status indicator
+   * Handle remote note_on events from WebSocket
+   */
+  handleRemoteNoteOn(data) {
+    const { midiNumber, velocity } = data;
+
+    // Add to remote active keys for visual distinction
+    this.state.remoteActiveKeys.add(midiNumber);
+
+    // Find the key and highlight it with remote styling
+    const keyId = this.findKeyByMidiNote(midiNumber);
+    if (keyId !== -1) {
+      // Highlight key with remote visual feedback
+      this.highlightRemoteKey(keyId, velocity);
+    }
+
+    // Play the note through audio engine if available
+    if (this.audioEngine && this.state.audioEngineReady) {
+      this.audioEngine.playNote(midiNumber, velocity);
+    }
+  }
+
+  /**
+   * Handle remote note_off events from WebSocket
+   */
+  handleRemoteNoteOff(data) {
+    const { midiNumber } = data;
+
+    // Remove from remote active keys
+    this.state.remoteActiveKeys.delete(midiNumber);
+
+    // Find the key and unhighlight it
+    const keyId = this.findKeyByMidiNote(midiNumber);
+    if (keyId !== -1) {
+      // Unhighlight remote key
+      this.unhighlightRemoteKey(keyId);
+    }
+
+    // Stop the note through audio engine if available
+    if (this.audioEngine && this.state.audioEngineReady) {
+      this.audioEngine.stopNote(midiNumber);
+    }
+  }
+
+  /**
+   * Handle state synchronization from server
+   */
+  handleStateSync(stateInfo) {
+    // Clear current remote keys
+    this.state.remoteActiveKeys.clear();
+
+    // Apply remote active notes from server state
+    if (stateInfo.activeNotes && Array.isArray(stateInfo.activeNotes)) {
+      stateInfo.activeNotes.forEach((noteData) => {
+        this.state.remoteActiveKeys.add(noteData.midiNumber);
+
+        // Highlight the key
+        const keyId = this.findKeyByMidiNote(noteData.midiNumber);
+        if (keyId !== -1) {
+          this.highlightRemoteKey(keyId, noteData.velocity || 64);
+        }
+      });
+    }
+
+    // Update connection status with client count info
+    const clientCount = stateInfo.activeClientCount || 0;
+    this.updateConnectionStatus(
+      "connected",
+      `Connected (${clientCount} clients)`
+    );
+
+    // Re-render piano to show updated state
+    this.renderPiano();
+  }
+
+  /**
+   * Find key ID by MIDI note number
+   */
+  findKeyByMidiNote(midiNumber) {
+    for (let i = 0; i < this.keys.length; i++) {
+      if (this.keys[i].midiNote === midiNumber) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Highlight key with remote visual feedback
+   */
+  highlightRemoteKey(keyId, velocity) {
+    if (keyId < 0 || keyId >= this.keys.length) return;
+
+    const key = this.keys[keyId];
+    if (!key) return;
+
+    // Mark key as remotely active for visual distinction
+    key.remoteActive = true;
+    key.remoteVelocity = velocity;
+
+    // Re-render the key with remote styling
+    this.renderKey(key);
+  }
+
+  /**
+   * Unhighlight remote key
+   */
+  unhighlightRemoteKey(keyId) {
+    if (keyId < 0 || keyId >= this.keys.length) return;
+
+    const key = this.keys[keyId];
+    if (!key) return;
+
+    // Remove remote active state
+    key.remoteActive = false;
+    key.remoteVelocity = 0;
+
+    // Re-render the key
+    this.renderKey(key);
+  }
+
+  /**
+   * Set up the piano renderer for key highlighting
+   */
+  setupPianoRenderer() {
+    if (this.canvas && this.ctx) {
+      this.pianoRenderer = new PianoRenderer(this.canvas, this.ctx);
+      console.log("✅ Piano renderer initialized");
+    }
+  }
+
+  /**
+   * Enhanced key rendering with remote vs local visual feedback
+   */
+  renderKey(key) {
+    if (!this.ctx || !key.bounds) return;
+
+    const ctx = this.ctx;
+    const bounds = key.bounds;
+
+    // Determine key state and colors
+    let fillColor,
+      strokeColor,
+      strokeWidth = 1;
+
+    if (key.isBlack) {
+      // Black key colors
+      if (key.active) {
+        // Local active - bright highlight
+        fillColor = "#4a90e2"; // Bright blue for local
+        strokeColor = "#2c5aa0";
+        strokeWidth = 2;
+      } else if (key.remoteActive) {
+        // Remote active - different color to distinguish
+        fillColor = "#e24a90"; // Pink/magenta for remote
+        strokeColor = "#a02c5a";
+        strokeWidth = 2;
+      } else {
+        // Inactive black key
+        fillColor = "#2c2c2c";
+        strokeColor = "#1a1a1a";
+      }
+    } else {
+      // White key colors
+      if (key.active) {
+        // Local active - bright highlight
+        fillColor = "#e8f4fd"; // Light blue for local
+        strokeColor = "#4a90e2";
+        strokeWidth = 2;
+      } else if (key.remoteActive) {
+        // Remote active - different color to distinguish
+        fillColor = "#fde8f4"; // Light pink for remote
+        strokeColor = "#e24a90";
+        strokeWidth = 2;
+      } else {
+        // Inactive white key
+        fillColor = "#ffffff";
+        strokeColor = "#cccccc";
+      }
+    }
+
+    // Draw key fill
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    // Draw key border
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    // Add velocity-based visual feedback for active keys
+    if (key.active || key.remoteActive) {
+      const velocity = key.active
+        ? key.velocity || 64
+        : key.remoteVelocity || 64;
+      const opacity = Math.max(0.1, Math.min(0.8, velocity / 127));
+
+      // Add a subtle glow effect
+      const glowColor = key.active
+        ? "rgba(74, 144, 226, " + opacity + ")"
+        : "rgba(226, 74, 144, " + opacity + ")";
+
+      ctx.save();
+      ctx.globalAlpha = opacity * 0.5;
+      ctx.fillStyle = glowColor;
+      ctx.fillRect(
+        bounds.x + 1,
+        bounds.y + 1,
+        bounds.width - 2,
+        bounds.height - 2
+      );
+      ctx.restore();
+    }
+
+    // Draw note label for white keys
+    if (!key.isBlack && bounds.height > 60) {
+      ctx.fillStyle = key.active || key.remoteActive ? "#333" : "#999";
+      ctx.font = `${Math.min(12, bounds.width * 0.4)}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+
+      const noteText = key.note + key.octave;
+      ctx.fillText(
+        noteText,
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height - 5
+      );
+    }
+  }
+
+  /**
+   * Enhanced playKey method with WebSocket integration
+   */
+  playKey(keyId) {
+    if (keyId < 0 || keyId >= this.keys.length) return;
+
+    const key = this.keys[keyId];
+    if (key.active) return; // Already playing
+
+    // Calculate velocity based on UI interaction (simplified)
+    const velocity = 64 + Math.floor(Math.random() * 40); // Random velocity between 64-103
+
+    // Mark key as locally active
+    key.active = true;
+    key.velocity = velocity;
+    this.state.activeKeys.add(keyId);
+
+    // Play audio locally
+    if (this.audioEngine && this.state.audioEngineReady) {
+      this.audioEngine.playNote(key.midiNote, velocity);
+    }
+
+    // Send note_on event to server via WebSocket
+    if (this.wsClient && this.wsClient.getState() === "Connected") {
+      this.wsClient.sendNoteOn(key.midiNote, velocity);
+    }
+
+    // Re-render the key with local active styling
+    this.renderKey(key);
+
+    console.log(
+      `🎹 Local note ON: ${key.note}${key.octave} (${key.midiNote}) velocity: ${velocity}`
+    );
+  }
+
+  /**
+   * Enhanced stopKey method with WebSocket integration
+   */
+  stopKey(keyId) {
+    if (keyId < 0 || keyId >= this.keys.length) return;
+
+    const key = this.keys[keyId];
+    if (!key.active) return; // Not currently playing locally
+
+    // Mark key as locally inactive
+    key.active = false;
+    key.velocity = 0;
+    this.state.activeKeys.delete(keyId);
+
+    // Stop audio locally
+    if (this.audioEngine && this.state.audioEngineReady) {
+      this.audioEngine.stopNote(key.midiNote);
+    }
+
+    // Send note_off event to server via WebSocket
+    if (this.wsClient && this.wsClient.getState() === "Connected") {
+      this.wsClient.sendNoteOff(key.midiNote);
+    }
+
+    // Re-render the key
+    this.renderKey(key);
+
+    console.log(
+      `🎹 Local note OFF: ${key.note}${key.octave} (${key.midiNote})`
+    );
+  }
+
+  /**
+   * Enhanced stopAllKeys method with WebSocket integration
+   */
+  stopAllKeys() {
+    // Stop all local keys
+    for (const keyId of this.state.activeKeys) {
+      const key = this.keys[keyId];
+      key.active = false;
+      key.velocity = 0;
+
+      // Stop audio
+      if (this.audioEngine && this.state.audioEngineReady) {
+        this.audioEngine.stopNote(key.midiNote);
+      }
+
+      // Send note off to server
+      if (this.wsClient && this.wsClient.getState() === "Connected") {
+        this.wsClient.sendNoteOff(key.midiNote);
+      }
+    }
+
+    // Clear local active keys
+    this.state.activeKeys.clear();
+
+    // Note: Don't clear remote keys here as they should be managed by remote events
+
+    this.renderPiano();
+  }
+
+  /**
+   * Set up MCP server connection (legacy method, now uses WebSocket)
+   */
+  setupMCPConnection() {
+    // This method is now handled by setupWebSocketConnection()
+    // Kept for backward compatibility
+    console.log("📝 MCP connection now handled via WebSocket");
+  }
+
+  /**
+   * Enhanced connection status update with WebSocket state
    */
   updateConnectionStatus(status, message = "") {
     this.state.connectionStatus = status;
@@ -1191,46 +1574,54 @@ class PianoInterface {
         disconnected: "Disconnected",
       };
 
-      statusText.textContent = statusMessages[status] || "Unknown";
+      const displayText = message || statusMessages[status] || "Unknown";
+      statusText.textContent = displayText;
+
+      // Add visual feedback for connection state
+      if (status === "connected") {
+        statusIndicator.style.borderColor = "#4CAF50";
+      } else if (status === "connecting") {
+        statusIndicator.style.borderColor = "#FF9800";
+      } else {
+        statusIndicator.style.borderColor = "#F44336";
+      }
     }
 
     if (message) {
-      console.log(message);
+      console.log(`🔌 Connection: ${status} - ${message}`);
     }
   }
 
   /**
-   * Send note on event to MCP server
+   * Send note on event to server (legacy method, now uses WebSocket)
    */
   sendNoteOn(midiNote, velocity) {
-    // This would send the note to the MCP server
-    console.log(`Note ON: ${midiNote}, velocity: ${velocity}`);
-
-    // TODO: Implement actual MCP communication
-    if (this.state.mcpConnection) {
-      // Send to MCP server
-    }
+    // This method is now handled by wsClient.sendNoteOn() in playKey()
+    console.log(
+      `📤 Note ON sent via WebSocket: ${midiNote}, velocity: ${velocity}`
+    );
   }
 
   /**
-   * Send note off event to MCP server
+   * Send note off event to server (legacy method, now uses WebSocket)
    */
   sendNoteOff(midiNote) {
-    // This would send the note off to the MCP server
-    console.log(`Note OFF: ${midiNote}`);
-
-    // TODO: Implement actual MCP communication
-    if (this.state.mcpConnection) {
-      // Send to MCP server
-    }
+    // This method is now handled by wsClient.sendNoteOff() in stopKey()
+    console.log(`📤 Note OFF sent via WebSocket: ${midiNote}`);
   }
 
   /**
-   * Cleanup and dispose of resources
+   * Enhanced cleanup and dispose of resources
    */
   dispose() {
     // Stop all active notes
     this.stopAllKeys();
+
+    // Disconnect WebSocket
+    if (this.wsClient) {
+      this.wsClient.disconnect();
+      this.wsClient = null;
+    }
 
     // Dispose of audio engine
     if (this.audioEngine) {
@@ -1241,8 +1632,10 @@ class PianoInterface {
     // Clear state
     this.state.audioEngineReady = false;
     this.state.audioContextStarted = false;
+    this.state.activeKeys.clear();
+    this.state.remoteActiveKeys.clear();
 
-    console.log("🗑️ Piano Interface disposed");
+    console.log("🗑️ Piano Interface disposed with WebSocket cleanup");
   }
 
   /**
