@@ -9,6 +9,7 @@
     />
     <title>MCP Piano - 88 Key Interface</title>
     <link rel="stylesheet" href="css/piano.css" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -183,12 +184,20 @@
     <!-- JavaScript -->
     <script src="https://unpkg.com/tone@latest"></script>
     <script src="js/audio-engine.js"></script>
+    <script src="js/simple-websocket-client.js"></script>
     <script src="js/piano.js"></script>
     <script>
-      // Simple initialization - just create the piano interface
+      // Initialize Piano Interface
       document.addEventListener("DOMContentLoaded", function () {
         console.log("🎹 Initializing Piano Interface...");
-        new PianoInterface();
+
+        // Initialize piano interface
+        const piano = new PianoInterface();
+
+        // Make objects globally available for debugging
+        window.piano = piano;
+
+        console.log("✅ Piano Interface initialized");
       });
     </script>
   </body>

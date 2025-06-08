@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     // Target and module settings for Node.js
-    "target": "ES2020",
+    "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "Node",
 
     // Output directory
     "outDir": "./dist",
@@ -31,6 +31,7 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
 
     // Source map for debugging
     "sourceMap": true,
@@ -38,16 +39,14 @@
     "declarationMap": true,
 
     // Skip type checking of declaration files
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    // Allow JavaScript files
+    "allowJs": true
   },
   "include": ["src/**/*"],
   "exclude": [
     "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.spec.ts",
-    "src/examples/**/*",
-    "src/http-server.ts",
-    "src/test-connection.ts"
+    "dist"
   ]
 }

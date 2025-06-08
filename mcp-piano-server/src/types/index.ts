@@ -7,6 +7,9 @@ import type { WebSocket as WSWebSocket } from "ws";
 // Export all piano-specific types
 export * from "./piano.js";
 
+// Export performance and reliability types
+export * from "./performance.js";
+
 // Export piano constants and utilities
 export * from "../models/piano-constants.js";
 export * from "../utils/note-utils.js";

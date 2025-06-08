@@ -54,10 +54,77 @@ npm install
 
 # Build the project
 npm run build
-
-# Start the server
-npm start
 ```
+
+### Running the System
+
+The MCP Piano system consists of two main components that work together:
+
+#### 1. Piano Web Server (Browser Interface)
+
+Start the piano web server that provides the browser interface and WebSocket server:
+
+```bash
+# Start the piano web server
+npm start
+
+# Or with more verbose output
+npm run start:full
+```
+
+This will:
+- Start the web server on `http://localhost:3000`
+- Enable WebSocket server on `ws://localhost:3000`
+- Serve the piano interface at `http://localhost:3000`
+- Accept MCP client connections
+
+#### 2. MCP Client Testing
+
+Test the MCP server connection and piano functionality:
+
+```bash
+# Run a complete demo (recommended)
+npm run demo
+
+# Run basic MCP client test
+npm run test-mcp
+
+# Run interactive MCP test mode
+npm run test-mcp-interactive
+```
+
+### Complete System Test
+
+1. **Start the piano web server** (in one terminal):
+   ```bash
+   npm start
+   ```
+
+2. **Open the browser interface**:
+   - Navigate to `http://localhost:3000`
+   - You should see the 88-key piano interface
+   - Test by clicking keys - they should light up and play sounds
+
+3. **Test MCP client integration** (in another terminal):
+   ```bash
+   npm run demo
+   ```
+   - This will play "Twinkle Twinkle Little Star" through the MCP server
+   - You should see the piano keys light up in the browser as notes are played
+   - The browser will reflect the keys being played in real-time
+
+### Server Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm start` | Start the piano web server (port 3000) |
+| `npm run start:full` | Start with verbose output |
+| `npm run demo` | Run complete MCP client demo |
+| `npm run test-mcp` | Basic MCP client test |
+| `npm run test-mcp-interactive` | Interactive MCP testing mode |
+| `npm run mcp-server` | Start standalone MCP server |
+| `npm run build` | Build TypeScript files |
+| `npm run dev` | Development mode with watch |
 
 ### Testing State Synchronization
 
@@ -162,8 +229,8 @@ const stateManager = new PianoStateManager("latest_wins");
 
 ```bash
 # Server configuration
-PORT=3000
-HOST=0.0.0.0
+MCP_PORT=3000          # Main server port (default: 3000)
+NODE_ENV=development   # Environment mode
 
 # WebSocket settings
 WS_HEARTBEAT_INTERVAL=30000
@@ -171,6 +238,8 @@ WS_HEARTBEAT_INTERVAL=30000
 # State synchronization
 CONFLICT_RESOLUTION_STRATEGY=latest_wins
 ```
+
+**Note**: The `.env` file in the project root contains these settings. All components (web server, MCP server, browser client) use the same port (3000) for seamless communication.
 
 ## Architecture
 
@@ -309,19 +378,39 @@ websocket.send(
 
 ### Common Issues
 
-1. **State Synchronization Not Working**
+1. **MCP Client Cannot Connect**
+
+   - Ensure the piano web server is running: `npm start`
+   - Check that port 3000 is available: `lsof -i:3000`
+   - Verify the `.env` file has `MCP_PORT=3000`
+   - Look for "✅ Connected to piano web server" in MCP client output
+
+2. **Browser Piano Not Reflecting Key Presses**
+
+   - Ensure both servers are running on the same port (3000)
+   - Check browser console for WebSocket connection errors
+   - Verify the WebSocket status indicator shows "Connected"
+   - Test browser piano keys manually first
+
+3. **Port Configuration Issues**
+
+   - All components must use port 3000 (check `.env` file)
+   - Kill any processes using port 3000: `lsof -ti:3000 | xargs kill -9`
+   - Restart the piano web server: `npm start`
+
+4. **State Synchronization Not Working**
 
    - Check WebSocket connection status
    - Verify message format in browser console
    - Check server logs for validation errors
 
-2. **Conflict Resolution Issues**
+5. **Conflict Resolution Issues**
 
    - Review conflict resolution strategy
    - Check client priority settings
    - Monitor state version numbers
 
-3. **Performance Issues**
+6. **Performance Issues**
    - Monitor client count and active notes
    - Check heartbeat interval settings
    - Review state history size
@@ -343,3 +432,60 @@ DEBUG=piano:* npm start
 ## License
 
 MIT License - see LICENSE file for details.
+
+## MCP Piano Server
+
+The Simple MCP Piano Server (`src/simple-piano-mcp.ts`) provides basic piano note playing tools that any MCP client can use.
+
+### Available Tools
+
+- **`play_piano_note`** - Play a single piano note
+
+  - `note`: Note in scientific notation (e.g., "C4", "F#3")
+  - `velocity`: MIDI velocity 0-127 (optional, default: 80)
+  - `duration`: Duration in milliseconds (optional, default: 1000ms)
+
+- **`stop_piano_note`** - Stop a specific note
+- **`stop_all_piano_notes`** - Stop all currently playing notes
+- **`get_currently_playing_notes`** - Get list of currently playing notes
+- **`get_piano_info`** - Get piano information and capabilities
+
+### Usage
+
+```bash
+# Start the MCP piano server
+npm run piano-server
+
+# Test the server with the included test client
+npm run test-client
+
+# Interactive testing mode
+npm run test-interactive
+```
+
+### Example: Playing "Twinkle Twinkle Little Star"
+
+When connected to an MCP client like Claude, you can request songs and the model will use the basic note tools to play them:
+
+```typescript
+// The model can call these tools in sequence:
+await callTool("play_piano_note", { note: "C4", duration: 500 });
+await callTool("play_piano_note", { note: "C4", duration: 500 });
+await callTool("play_piano_note", { note: "G4", duration: 500 });
+await callTool("play_piano_note", { note: "G4", duration: 500 });
+// ... and so on
+```
+
+### Architecture
+
+- **MCP Server**: Uses the official TypeScript SDK
+- **Note Tracking**: In-memory tracking of currently playing notes
+- **Scientific Notation**: Standard piano notation (A0 to C8)
+- **MIDI Standard**: Velocity range 0-127
+- **Real-time**: WebSocket support for live updates (on port 3000)
+
+The server is built with the [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk) and follows MCP best practices.
+
+---
+
+## Original Piano Web App

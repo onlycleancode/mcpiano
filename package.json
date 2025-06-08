@@ -2,13 +2,24 @@
   "name": "mcpiano",
   "version": "1.0.0",
   "description": "MCP Piano - 88-Key Piano Interface with Model Context Protocol",
+  "type": "module",
   "main": "mcp-piano-server/dist/server.js",
+  "bin": {
+    "claude-piano": "./claude-piano-cli.js"
+  },
   "scripts": {
     "start": "cd mcp-piano-server && npm start",
     "dev": "cd mcp-piano-server && npm run dev",
     "build": "cd mcp-piano-server && npm run build",
     "test": "cd mcp-piano-server && npm test",
-    "install-deps": "cd mcp-piano-server && npm install"
+    "install-deps": "cd mcp-piano-server && npm install",
+    "cli": "node claude-piano-cli.js",
+    "cli-simple": "node claude-piano-cli-simple.js",
+    "install-global": "npm install -g .",
+    "uninstall-global": "npm uninstall -g mcpiano"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3"
   },
   "keywords": [
     "piano",

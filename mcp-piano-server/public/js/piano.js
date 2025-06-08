@@ -495,13 +495,13 @@ class PianoInterface {
       "A#",
       "B",
     ];
-    const noteIndex = (midiNote - 12) % 12; // Adjust for MIDI note numbering
-    const octave = Math.floor((midiNote - 12) / 12);
+    const noteIndex = midiNote % 12; // Get note within the octave
+    const octave = Math.floor(midiNote / 12) - 1; // MIDI octave numbering starts at -1
     const noteName = noteNames[noteIndex];
-    const isBlack = noteName.includes("#");
+    const isBlack = noteName && noteName.includes("#");
 
     return {
-      name: noteName,
+      name: noteName || "?", // Fallback to "?" if noteName is undefined
       octave: octave,
       isBlack: isBlack,
     };
@@ -625,6 +625,21 @@ class PianoInterface {
    */
   renderKey(key) {
     const { x, y, width, height } = key.bounds;
+
+    // Fix: Validate bounds to prevent rendering with NaN values
+    if (
+      isNaN(x) ||
+      isNaN(y) ||
+      isNaN(width) ||
+      isNaN(height) ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      console.warn(
+        `⚠️ Invalid bounds for key ${key.id}: x=${x}, y=${y}, width=${width}, height=${height}`
+      );
+      return;
+    }
     const isActive = this.state.activeKeys.has(key.id);
 
     // Set fill style based on key type and state
@@ -657,11 +672,19 @@ class PianoInterface {
     }
 
     // Draw note name for larger keys
-    if (width > 20 && !key.isBlack) {
+    if (width > 20 && !key.isBlack && key.noteName && key.noteName !== "?") {
       this.ctx.fillStyle = "#666666";
       this.ctx.font = `${Math.max(8, width / 4)}px Inter, sans-serif`;
       this.ctx.textAlign = "center";
-      this.ctx.fillText(key.noteName, x + width / 2, y + height - 10);
+
+      // Fix: Properly handle octave value that might be undefined, null, or NaN
+      const octaveText =
+        key.octave !== undefined && key.octave !== null && !isNaN(key.octave)
+          ? key.octave.toString()
+          : "";
+      const noteText = key.noteName + octaveText;
+
+      this.ctx.fillText(noteText, x + width / 2, y + height - 10);
     }
   }
 
@@ -1037,8 +1060,13 @@ class PianoInterface {
     // Update visual
     this.renderPiano();
 
+    // Fix: Properly format octave for console output
+    const safeOctave =
+      key.octave !== undefined && key.octave !== null && !isNaN(key.octave)
+        ? key.octave
+        : "?";
     console.log(
-      `Playing key: ${key.noteName}${key.octave} (MIDI: ${
+      `Playing key: ${key.noteName}${safeOctave} (MIDI: ${
         key.midiNote
       }, velocity: ${velocity.toFixed(2)})`
     );
@@ -1176,7 +1204,7 @@ class PianoInterface {
     try {
       console.log("🔌 Initializing WebSocket connection...");
 
-      // Initialize WebSocket client
+      // Initialize simple WebSocket client
       this.wsClient = new PianoWebSocketClient();
 
       // Subscribe to WebSocket messages for remote note events
@@ -1215,7 +1243,7 @@ class PianoInterface {
       // Update initial connection status
       this.updateConnectionStatus("connecting", "Connecting to server...");
 
-      console.log("✅ WebSocket client initialized");
+      console.log("✅ Simple WebSocket client initialized");
     } catch (error) {
       console.error("❌ Failed to initialize WebSocket connection:", error);
       this.updateConnectionStatus("disconnected", "Connection failed");
@@ -1362,6 +1390,21 @@ class PianoInterface {
     const ctx = this.ctx;
     const bounds = key.bounds;
 
+    // Fix: Validate bounds to prevent rendering with NaN values
+    if (
+      isNaN(bounds.x) ||
+      isNaN(bounds.y) ||
+      isNaN(bounds.width) ||
+      isNaN(bounds.height) ||
+      bounds.width <= 0 ||
+      bounds.height <= 0
+    ) {
+      console.warn(
+        `⚠️ Invalid bounds for key ${key.id}: bounds=${JSON.stringify(bounds)}`
+      );
+      return;
+    }
+
     // Determine key state and colors
     let fillColor,
       strokeColor,
@@ -1437,13 +1480,24 @@ class PianoInterface {
     }
 
     // Draw note label for white keys
-    if (!key.isBlack && bounds.height > 60) {
+    if (
+      !key.isBlack &&
+      bounds.height > 60 &&
+      key.noteName &&
+      key.noteName !== "?"
+    ) {
       ctx.fillStyle = key.active || key.remoteActive ? "#333" : "#999";
       ctx.font = `${Math.min(12, bounds.width * 0.4)}px Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
 
-      const noteText = key.note + key.octave;
+      // Fix: Properly handle octave value that might be undefined, null, or NaN
+      const octaveText =
+        key.octave !== undefined && key.octave !== null && !isNaN(key.octave)
+          ? key.octave.toString()
+          : "";
+      const noteText = key.noteName + octaveText;
+
       ctx.fillText(
         noteText,
         bounds.x + bounds.width / 2,
@@ -1482,8 +1536,13 @@ class PianoInterface {
     // Re-render the key with local active styling
     this.renderKey(key);
 
+    // Fix: Properly format octave for console output
+    const safeOctave =
+      key.octave !== undefined && key.octave !== null && !isNaN(key.octave)
+        ? key.octave
+        : "?";
     console.log(
-      `🎹 Local note ON: ${key.note}${key.octave} (${key.midiNote}) velocity: ${velocity}`
+      `🎹 Local note ON: ${key.noteName}${safeOctave} (${key.midiNote}) velocity: ${velocity}`
     );
   }
 
@@ -1514,8 +1573,13 @@ class PianoInterface {
     // Re-render the key
     this.renderKey(key);
 
+    // Fix: Properly format octave for console output
+    const safeOctave =
+      key.octave !== undefined && key.octave !== null && !isNaN(key.octave)
+        ? key.octave
+        : "?";
     console.log(
-      `🎹 Local note OFF: ${key.note}${key.octave} (${key.midiNote})`
+      `🎹 Local note OFF: ${key.noteName}${safeOctave} (${key.midiNote})`
     );
   }
 
