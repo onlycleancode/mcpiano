@@ -19,7 +19,8 @@
     "uninstall-global": "npm uninstall -g mcpiano"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.3"
+    "@anthropic-ai/sdk": "^0.24.3",
+    "dotenv": "^16.3.1"
   },
   "keywords": [
     "piano",

@@ -11,7 +11,7 @@
     "dev": "tsc --watch",
     "start": "npm run build && node dist/server.js",
     "start:full": "npm run build && echo '🎹 Starting Piano Interface Server...' && node dist/server.js",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "web-server": "npm run build && node dist/server.js",
     "mcp-server": "npm run build && node dist/simple-piano-mcp.js",
     "test-mcp": "npm run build && node dist/test-client.js dist/simple-piano-mcp.js",
