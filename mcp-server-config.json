@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mcp-piano-server": {
+      "command": "node",
+      "args": [
+        "/Users/joelmontano/Documents/Projects/mcpiano/mcp-piano-server/dist/simple-piano-mcp.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
